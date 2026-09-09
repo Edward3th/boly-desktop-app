@@ -9,7 +9,7 @@ var game_id: int = 0
 # reenvia. No agregues codigo que lo use.
 var key: String = ""
 
-# Intervalo del heartbeat. Debe ser menor al TTL del servidor (~3 min).
+# Intervalo del heartbeat. Debe ser menor al TTL del servidor (~5 min).
 # El launcher de PRODUCCION nunca envia -heartbeat_seconds; solo lo usa la
 # herramienta de verificacion (verifier/) para correr las pruebas en segundos.
 var heartbeat_seconds := 60.0
@@ -40,7 +40,7 @@ func _persist_and_start():
 
     # Seguir procesando aunque el juego pause el SceneTree (get_tree().paused =
     # true en un menu de pausa): si el heartbeat se congela, la sesion expira en
-    # el servidor (TTL 3 min) y el juego se cierra al despausar. Los hijos
+    # el servidor (TTL 5 min) y el juego se cierra al despausar. Los hijos
     # (HTTPRequest y Timer) heredan este modo.
     process_mode = Node.PROCESS_MODE_ALWAYS
 
@@ -119,8 +119,9 @@ func _on_request_completed(result, response_code, headers, body):
         get_tree().quit()
         return
 
-    # Error de red transitorio en un heartbeat: tolerar un par de fallos.
+    # Error de red transitorio en un heartbeat: tolerar varios fallos seguidos
+    # (una conexion inestable puede fallar 1-2 latidos sin estar realmente caida).
     consecutive_failures += 1
-    if consecutive_failures >= 2:
+    if consecutive_failures >= 4:
         push_error("Validation failed (network): " + str(response_code))
         get_tree().quit()

@@ -115,9 +115,9 @@ Content-Type: application/json
 | `400 { "state": false, "message": "Missing key or game_id" }` | Malformed request — the body is missing a field | Treat as a bug in the integration, not a revocation |
 | `403 { "state": false, ... }` | Key invalid, **superseded by another machine**, expired, or access lost | **Quit** |
 | `429 { "state": false, ... }` | Rate limited | Back off, retry next interval; quit only after repeated failures |
-| network error | Offline / unreachable | Tolerate ~2 misses, then quit |
+| network error | Offline / unreachable | Tolerate ~4 misses, then quit |
 
-The server key TTL is **3 minutes**. The game must heartbeat well inside that —
+The server key TTL is **5 minutes**. The game must heartbeat well inside that —
 **every ~60 seconds** — starting at launch and repeating for the whole session.
 
 A `403 / state:false` is the normal signal that the user started the game on

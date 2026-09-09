@@ -134,7 +134,7 @@ void UValidationSubsystem::OnResponseReceived(FHttpRequestPtr Request, FHttpResp
     }
 
     // Error de red transitorio en un heartbeat: tolerar un par de fallos.
-    if (++ConsecutiveFailures >= 2)
+    if (++ConsecutiveFailures >= 4)
     {
         UE_LOG(LogTemp, Error, TEXT("Validation failed (network): %d"), Code);
         QuitGame();

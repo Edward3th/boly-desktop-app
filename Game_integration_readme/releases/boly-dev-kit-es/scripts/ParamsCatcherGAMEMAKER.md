@@ -27,7 +27,7 @@ game_id = 0;
 // reenvia. No agregues codigo que lo use.
 key = "";
 
-// Intervalo del heartbeat. Debe ser menor al TTL del servidor (~3 min).
+// Intervalo del heartbeat. Debe ser menor al TTL del servidor (~5 min).
 // El launcher de PRODUCCION nunca envia -heartbeat_seconds; solo lo usa la
 // herramienta de verificacion (verifier/) para correr las pruebas en segundos.
 heartbeat_seconds = 60;
@@ -129,7 +129,7 @@ if (async_load[? "http_status"] == 403 || first_validation) {
 
 // Error de red transitorio en un heartbeat: tolerar un par de fallos.
 consecutive_failures += 1;
-if (consecutive_failures >= 2) {
+if (consecutive_failures >= 4) {
     show_debug_message("Validation failed (network): " + string(async_load[? "http_status"]));
     game_end();
 }

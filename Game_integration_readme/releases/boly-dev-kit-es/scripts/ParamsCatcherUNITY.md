@@ -15,7 +15,7 @@ public class ParamsCatcher : MonoBehaviour
     // y nunca lo reenvia. No agregues codigo que lo use.
     string key = "";
 
-    // Intervalo del heartbeat. Debe ser menor al TTL del servidor (~3 min).
+    // Intervalo del heartbeat. Debe ser menor al TTL del servidor (~5 min).
     // El launcher de PRODUCCION nunca envia -heartbeat_seconds; solo lo usa la
     // herramienta de verificacion (verifier/) para correr las pruebas en segundos.
     float heartbeatSeconds = 60f;
@@ -82,7 +82,7 @@ public class ParamsCatcher : MonoBehaviour
         // WaitForSecondsRealtime (NO WaitForSeconds): el heartbeat debe correr en
         // tiempo real aunque el juego pause con Time.timeScale = 0 (menu de pausa,
         // pantalla de victoria) o el hilo principal se atasque cargando una escena;
-        // si no, la sesion expira en el servidor (TTL 3 min) y el juego se cierra.
+        // si no, la sesion expira en el servidor (TTL 5 min) y el juego se cierra.
         while (true)
         {
             yield return new WaitForSecondsRealtime(heartbeatSeconds);
@@ -135,7 +135,7 @@ public class ParamsCatcher : MonoBehaviour
         // Resto de fallos transitorios en un heartbeat (429, 5xx, error de red):
         // tolerar un par de fallos antes de cerrar.
         consecutiveFailures++;
-        if (consecutiveFailures >= 2)
+        if (consecutiveFailures >= 4)
         {
             Debug.LogError("Validation failed (transient): " + request.error);
             Application.Quit();
