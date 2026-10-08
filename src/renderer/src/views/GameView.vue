@@ -5,9 +5,11 @@ import GameList from '@/components/games/GameList.vue'
 import GameDetails from '@/components/games/GameDetails.vue'
 import SkeletonDetail from '@/components/skeletons/SkeletonDetail.vue'
 import axios from 'axios'
+import { useI18n } from 'vue-i18n'
 import type { Game } from '@/types'
 
 const route = useRoute()
+const { t } = useI18n()
 
 const game = ref<Game | null>(null)
 const loading = ref(true)
@@ -51,7 +53,9 @@ async function UpdateData(gameId: string): Promise<void> {
       developer_id: gameData.developer_id,
       game_type_id: gameData.game_type_id,
       game_type: gameData.game_type,
-      game_Path: gameData.game_Path
+      game_Path: gameData.game_Path,
+      free_to_play: gameData.free_to_play,
+      education: gameData.education ?? null
     }
   } catch (err: unknown) {
     error.value = err instanceof Error ? err.message : 'An error occurred'
@@ -70,7 +74,12 @@ async function UpdateData(gameId: string): Promise<void> {
   <div v-else>
     <GameDetails :item="game" />
   </div>
-  <GameList />
+  <GameList
+    :show-filters="false"
+    :exclude-game-id="game?.game_id ?? null"
+    :related-to="game?.education ?? null"
+    :title="t('store_more_games')"
+  />
 </template>
 
 <style scoped>

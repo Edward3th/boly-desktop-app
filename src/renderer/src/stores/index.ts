@@ -13,6 +13,7 @@ import useDownloadStore from '../desktop-stores/download'
 import useGameRoutes from '../desktop-stores/gameRoutes'
 import useCodes from './codes'
 import useEmails from './emails'
+import useCurriculum from './curriculum'
 
 export {
   useAuth,
@@ -29,5 +30,6 @@ export {
   useDownloadStore,
   useGameRoutes,
   useCodes,
-  useEmails
+  useEmails,
+  useCurriculum
 }
