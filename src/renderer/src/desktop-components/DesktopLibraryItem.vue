@@ -4,19 +4,22 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuth, useAchievements, useGames } from '@/stores'
 import useGameRoutes from '@/desktop-stores/gameRoutes'
-import type { Game, Achievement } from '@/types'
+import type { Game, Achievement, LocalizedString } from '@/types'
 import PlayIcon from '@/components/icons/PlayIcon.vue'
 import LoadingSpinnerIcon from '@/components/icons/LoadingSpinnerIcon.vue'
 import DownloadIcon from '@/components/icons/DownloadIcon.vue'
 import ClockhistoryIcon from '@/components/icons/ClockhistoryIcon.vue'
 import VerticalDotsIcon from '@/components/icons/VerticalDotsIcon.vue'
 import router from '@/router'
-import { resolveImageUrl } from '@/utils/imageUrl'
+import { PLACEHOLDER_IMAGE, resolveImageUrl } from '@/utils/imageUrl'
+import GameEducationMeta from '@/components/education/GameEducationMeta.vue'
 import { recordPlayed } from '@/utils/recentlyPlayed'
 
 const props = defineProps<{
   loading?: boolean
   item: Game
+  /** Position in the list, for the staggered entrance. */
+  index?: number
 }>()
 
 const i18n = useI18n()
@@ -34,7 +37,32 @@ const playTime = ref<number | null>(null)
 const playTimeLoading = ref(true)
 const showOptionsMenu = ref(false)
 
-console.log('LibraryItem received game:', props.item)
+const localized = (value: LocalizedString | null | undefined) =>
+  value?.[i18n.locale.value] || value?.es || value?.en || ''
+
+const name = computed(() => localized(props.item.name))
+// Games without educational content fall back to their long description,
+// clamped to the same two lines as the store.
+const description = computed(
+  () => localized(props.item.education?.short_description) || localized(props.item.description)
+)
+
+// Full URLs (S3) pass through; legacy rows store a relative path (served from
+// VITE_IMAGES_BASE_URL) or a JSON array of images (the first is the key art).
+const bannerSrc = computed(() => {
+  const raw = props.item.banner_url?.trim()
+  if (!raw) return null
+  let path = raw
+  if (raw.startsWith('[')) {
+    try {
+      path = JSON.parse(raw)[0] ?? ''
+    } catch {
+      return null
+    }
+  }
+  return path ? resolveImageUrl(path) : null
+})
+const imageFailed = ref(false)
 
 // game_type rows are seeded as 1 = DLC, 2 = Web, 3 = Downloadable
 const WEB_GAME_TYPE_ID = 2
@@ -410,133 +438,96 @@ async function Download() {
 </script>
 
 <template>
-  <div v-if="props.loading" class="library-item sk-item">
-    <div class="sk sk-banner"></div>
-    <div class="game-info sk-body">
-      <div class="sk-padded">
-        <div class="sk sk-title"></div>
-      </div>
-      <div class="sk-divider"></div>
-      <div class="sk-section">
-        <div class="sk sk-label"></div>
-        <div class="sk sk-block"></div>
-      </div>
-      <div class="sk-section">
-        <div class="sk sk-label"></div>
-        <div class="sk sk-block sk-small"></div>
-      </div>
-      <div class="sk-actions">
-        <div class="sk sk-action-btn"></div>
-      </div>
+  <div v-if="props.loading" class="lib-row sk-row" aria-hidden="true">
+    <div class="sk sk-capsule"></div>
+    <div class="sk-text">
+      <div class="sk sk-title"></div>
+      <div class="sk sk-line"></div>
+      <div class="sk sk-line short"></div>
     </div>
+    <div class="sk sk-action-btn"></div>
   </div>
-  <div v-else class="library-item" @click="Play">
-    <img :src="resolveImageUrl(props.item.banner_url)" class="game-banner" />
-    <div class="game-info">
-      <div class="title-section">
-        <h3>{{ props.item.name[i18n.locale.value].toUpperCase() }}</h3>
+  <div v-else class="lib-row" :style="{ '--i': props.index ?? 0 }" @click="Play">
+    <div class="capsule">
+      <img
+        :src="bannerSrc && !imageFailed ? bannerSrc : PLACEHOLDER_IMAGE"
+        alt=""
+        loading="lazy"
+        :class="{ 'capsule-placeholder': !bannerSrc || imageFailed }"
+        @error="imageFailed = true"
+      />
+    </div>
+
+    <div class="row-body">
+      <div class="title-line">
+        <h3 class="row-name">{{ name }}</h3>
         <span v-if="props.item.pending_review" class="pending-review-badge">{{ $t('pending_review_badge') }}</span>
       </div>
+      <p v-if="description" class="row-desc">{{ description }}</p>
+      <GameEducationMeta :education="props.item.education" />
 
-      <div class="divider"></div>
+      <div class="row-stats">
+        <span class="stat">
+          <ClockhistoryIcon class="stat-icon" aria-hidden="true" />
+          <span v-if="playTimeLoading" class="stat-muted">…</span>
+          <span v-else-if="playTime !== null">{{ Math.floor(playTime / 60) }}h {{ playTime % 60 }}m</span>
+          <span v-else class="stat-muted">{{ $t('no_play_time_recorded') }}</span>
+        </span>
 
-      <!-- Achievements Section -->
-      <div class="achievements-section">
-        <h4 class="section-label">{{ $t('achievements') }}</h4>
-        <div class="achievements-container">
-          <div v-if="achievementsLoading" class="achievements-loading">
-            <span class="loading-dot"></span>
-            <span class="loading-dot"></span>
-            <span class="loading-dot"></span>
-          </div>
-          <div v-else-if="hasAchievements" class="achievements-icons">
-            <div
-              v-for="achievement in displayedAchievements"
-              :key="achievement.id"
-              class="achievement-icon-wrapper"
-            >
-              <div class="achievement-tooltip">
-                <strong>{{ achievement.name }}</strong>
-                <p>{{ achievement.description }}</p>
-              </div>
-              <div class="achievement-frame">
-                <img
-                  :src="achievement.icon_url"
-                  :class="{
-                    'achievement-icon': true,
-                    locked: achievement.progress !== undefined && achievement.progress < 100
-                  }"
-                  alt="Achievement Icon"
-                />
-              </div>
-              <div
-                v-if="achievement.progress !== 100 && achievement.progress !== undefined"
-                class="achievement-progress"
-              >
-                <div class="progress-bar" :style="{ width: `${achievement.progress}%` }"></div>
-              </div>
-            </div>
-          </div>
-          <div v-else class="no-achievements">
-            {{ $t('no_achievements') }}
-          </div>
-        </div>
+        <span class="stat" :aria-label="$t('achievements')">
+          <span v-if="achievementsLoading" class="stat-muted">…</span>
+          <template v-else-if="hasAchievements">
+            <span v-for="achievement in displayedAchievements" :key="achievement.id" class="achievement">
+              <img
+                :src="achievement.icon_url"
+                :alt="localized(achievement.name)"
+                :class="{ locked: achievement.progress !== undefined && achievement.progress < 100 }"
+              />
+              <span class="achievement-tooltip" role="tooltip">
+                <strong>{{ localized(achievement.name) }}</strong>
+                <span>{{ localized(achievement.description) }}</span>
+              </span>
+            </span>
+            <span v-if="gameAchievements.length > displayedAchievements.length" class="stat-muted">
+              +{{ gameAchievements.length - displayedAchievements.length }}
+            </span>
+          </template>
+          <span v-else class="stat-muted">{{ $t('no_achievements') }}</span>
+        </span>
       </div>
+    </div>
 
-      <!-- Play Time Section -->
-      <div class="play-time-section">
-        <h4 class="section-label">{{ $t('play_time') }}</h4>
-        <div class="play-time-container">
-          <div v-if="playTimeLoading" class="play-time-loading">
-            <span class="loading-dot"></span>
-            <span class="loading-dot"></span>
-            <span class="loading-dot"></span>
-          </div>
-          <div v-else-if="playTime !== null" class="play-time-value">
-            <div class="time-display">
-              <ClockhistoryIcon class="clock-icon" />
-              <span
-                >{{ $t('play_time') }}: {{ Math.floor(playTime / 60) }}h {{ playTime % 60 }}m</span
-              >
-            </div>
-          </div>
-          <div v-else class="no-play-time">
-            {{ $t('no_play_time_recorded') }}
-          </div>
-        </div>
-      </div>
+    <div class="row-actions">
+      <button
+        :class="['action-button', actionClass]"
+        :disabled="isLoading || isDownloading || isInstalling || isRunning"
+        @click.stop="onActionClick"
+      >
+        <span class="button-text">{{ actionLabel }}</span>
+        <PlayIcon v-if="actionState === 'play' || actionState === 'running'" class="icon" />
+        <LoadingSpinnerIcon
+          v-else-if="actionState === 'downloading' || actionState === 'installing'"
+          class="icon"
+        />
+        <DownloadIcon v-else class="icon" />
+      </button>
 
-      <div class="game-actions">
+      <!-- Options Button -->
+      <div v-if="props.item.isInstalled" class="options-container">
         <button
-          :class="['action-button', actionClass]"
-          :disabled="isLoading || isDownloading || isInstalling || isRunning"
-          @click.stop="onActionClick"
+          class="options-button"
+          :class="{ active: showOptionsMenu }"
+          :aria-label="$t('uninstall')"
+          @click.stop="toggleOptionsMenu"
         >
-          <span class="button-text">{{ actionLabel }}</span>
-          <PlayIcon v-if="actionState === 'play' || actionState === 'running'" class="icon" />
-          <LoadingSpinnerIcon
-            v-else-if="actionState === 'downloading' || actionState === 'installing'"
-            class="icon"
-          />
-          <DownloadIcon v-else class="icon" />
+          <VerticalDotsIcon class="options-icon" />
         </button>
 
-        <!-- Options Button -->
-        <div v-if="props.item.isInstalled" class="options-container">
-          <button
-            class="options-button"
-            :class="{ active: showOptionsMenu }"
-            @click.stop="toggleOptionsMenu"
-          >
-            <VerticalDotsIcon class="options-icon" />
+        <!-- Options Dropdown -->
+        <div v-if="showOptionsMenu" class="options-dropdown">
+          <button class="dropdown-item uninstall-item" @click="uninstallGame">
+            <span>{{ $t('uninstall') }}</span>
           </button>
-
-          <!-- Options Dropdown -->
-          <div v-if="showOptionsMenu" class="options-dropdown">
-            <button class="dropdown-item uninstall-item" @click="uninstallGame">
-              <span>{{ $t('uninstall') }}</span>
-            </button>
-          </div>
         </div>
       </div>
     </div>
@@ -544,454 +535,266 @@ async function Download() {
 </template>
 
 <style scoped>
-@keyframes skeleton-shimmer {
-  0% { background-position: -200% center; }
-  100% { background-position: 200% center; }
-}
-
-.sk {
-  background: linear-gradient(90deg, rgba(255,255,255,0.12) 25%, rgba(255,255,255,0.28) 50%, rgba(255,255,255,0.12) 75%);
-  background-size: 200% 100%;
-  animation: skeleton-shimmer 1.6s infinite;
-  border-radius: 6px;
-}
-
-.library-item.sk-item {
-  background: rgba(255, 255, 255, 0.05);
-  box-shadow: none;
-  cursor: default;
-}
-
-.sk-banner { width: 100%; height: 160px; border-radius: 0; }
-.sk-body { display: flex; flex-direction: column; }
-.sk-padded { padding: 0.8rem 1rem 0.5rem; }
-.sk-divider { height: 1px; background: rgba(255,255,255,0.08); margin: 0 1rem; }
-.sk-title { width: 60%; height: 20px; }
-.sk-section { padding: 0.3rem 1rem 0.6rem; display: flex; flex-direction: column; gap: 0.4rem; }
-.sk-label { width: 35%; height: 11px; }
-.sk-block { width: 100%; height: 50px; border-radius: 8px; }
-.sk-small { height: 36px; }
-.sk-actions { padding: 0.8rem 1rem 1.2rem; display: flex; justify-content: center; gap: 0.5rem; }
-.sk-action-btn { width: 150px; height: 42px; border-radius: 8px; }
-
-.library-item {
-  width: 290px;
-  border-radius: 20px;
-  overflow: hidden;
-  background: var(--color-background-soft);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  transition: all 0.3s ease;
-  cursor: pointer;
+/* Same row format as the store search (GameSearchRow): key art on the left;
+   name, description, subject/grades/topic, play time and achievements in the
+   middle; the play/install action on the right. */
+.lib-row {
   position: relative;
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) auto;
+  gap: 1.25rem;
+  align-items: center;
+  padding: 0.75rem;
+  border-radius: 12px;
+  color: var(--light);
+  font-family: 'Poppins', sans-serif;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+  animation: row-in 0.35s ease both;
+  animation-delay: calc(min(var(--i, 0), 12) * 35ms);
 }
 
-.library-item:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+/* Hairline between consecutive rows, inset so it doesn't follow the rounded
+   corners of the hover background. */
+.lib-row + .lib-row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0.75rem;
+  right: 0.75rem;
+  border-top: 1px solid rgba(84, 84, 84, 0.48);
 }
 
-.game-banner {
+.lib-row:hover::before,
+.lib-row:hover + .lib-row::before {
+  opacity: 0;
+}
+
+.lib-row:not(.sk-row):hover {
+  background-color: rgba(251, 251, 251, 0.06);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+.capsule {
   width: 100%;
-  height: 160px;
-  object-fit: cover;
-  border-bottom: 3px solid var(--boly-button-blue);
+  aspect-ratio: 16 / 9;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--boly-bg-darker);
 }
 
-.game-info {
-  background: white;
-  padding: 0;
+.capsule img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* The app's local Boly mark, for games without (or with a broken) banner. */
+.capsule img.capsule-placeholder {
+  object-fit: contain;
+  padding: 18%;
+  box-sizing: border-box;
+  opacity: 0.35;
+}
+
+.row-body {
   display: flex;
   flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
 }
 
-.title-section h3 {
-  font-family: 'Poppins', sans-serif;
-  font-size: larger;
-  color: black;
-  font-weight: bold;
+.title-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.row-name {
   margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  line-height: 1.3;
 }
 
 .pending-review-badge {
-  display: inline-block;
-  margin-top: 4px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: rgba(240, 180, 41, 0.18);
-  color: #a86f00;
-  font-family: 'Poppins', sans-serif;
-  font-size: 0.7rem;
+  padding: 0.1rem 0.55rem;
+  border-radius: 6px;
+  background: rgba(252, 153, 4, 0.18);
+  color: var(--boly-highlight);
+  font-size: 0.72rem;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  width: fit-content;
 }
 
-.completion-indicator {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.completion-bar {
-  width: 40px;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 3px;
+.row-desc {
+  margin: 0;
+  color: var(--light-gray);
+  font-size: 0.88rem;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
-.completion-progress {
-  height: 100%;
-  background: var(--boly-button-blue);
-  border-radius: 3px;
-}
-
-.completion-text {
-  font-size: 0.7rem;
-  color: rgba(255, 255, 255, 0.8);
-  font-weight: bold;
-}
-
-/* Dividers between sections */
-.divider {
-  height: 1px;
-  background: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.1), transparent);
-  margin: 0 1rem;
-}
-
-/* Achievements section */
-.achievements-section {
-  padding: 0rem 1rem;
-  margin-bottom: 10px;
-}
-
-/* Play Time section */
-.play-time-section {
-  padding: 0rem 1rem;
-  margin-bottom: 10px;
-}
-
-.play-time-container {
-  min-height: 30px; /* Adjusted height */
+.row-stats {
   display: flex;
-  justify-content: start;
+  flex-wrap: wrap;
   align-items: center;
-  background: rgba(0, 0, 0, 0.15);
-  border-radius: 8px;
-  padding: 8px;
-}
-
-.play-time-value {
-  font-family: 'Poppins', sans-serif;
-  font-size: 0.9rem; /* Adjusted font size */
-  color: black;
-  font-weight: bold;
-}
-
-.no-play-time {
-  font-family: 'Poppins', sans-serif;
+  gap: 0.4rem 1.25rem;
+  margin-top: 0.2rem;
   font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.7); /* Adjusted for better visibility */
-  font-style: italic;
 }
 
-.play-time-loading {
-  display: flex;
-  justify-content: center;
-  gap: 4px;
+.stat {
+  display: inline-flex;
   align-items: center;
+  gap: 0.4rem;
 }
 
-.section-label {
-  margin: 0 0 0.5rem;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.6);
-  letter-spacing: 1px;
-  font-weight: 600;
+.stat-icon {
+  width: 14px;
+  height: 14px;
+  fill: var(--light-gray);
 }
 
-.clock-icon {
-  width: 16px;
-  height: 16px;
-  margin-right: 7px;
-  margin-bottom: -3px;
+.stat-muted {
+  color: var(--light-gray);
 }
 
-/* Achievements section */
-.achievements-section {
-  padding: 0rem 1rem;
-  margin-bottom: 10px;
-}
-
-.section-label {
-  margin: 0 0 0.5rem;
-  font-size: 0.75rem;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.6);
-  letter-spacing: 1px;
-  font-weight: 600;
-}
-
-.achievements-container {
-  min-height: 50px;
-  display: flex;
-  justify-content: start;
-  align-items: center;
-  background: rgba(0, 0, 0, 0.15);
-  border-radius: 8px;
-  padding: 8px;
-}
-
-.achievements-icons {
-  display: flex;
-  justify-content: start;
-  gap: 10px;
-}
-
-.achievement-icon-wrapper {
+.achievement {
   position: relative;
+  display: inline-flex;
 }
 
-.achievement-frame {
-  width: 34px;
-  height: 34px;
-  border-radius: 5px;
-  padding: 2px;
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(3px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-  transition: all 0.2s ease;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.achievement-icon-wrapper:hover .achievement-frame {
-  background: rgba(var(--boly-button-blue-rgb, 30, 144, 255), 0.3);
-  transform: translateY(-2px);
-}
-
-.achievement-icon {
-  width: 30px;
-  height: 30px;
+.achievement img {
+  width: 24px;
+  height: 24px;
   border-radius: 4px;
-}
-
-.achievement-icon.locked {
-  filter: grayscale(100%);
-  opacity: 0.6;
-}
-
-.achievement-icon-wrapper:hover .achievement-tooltip {
   display: block;
-  opacity: 1;
+}
+
+.achievement img.locked {
+  filter: grayscale(100%);
+  opacity: 0.55;
 }
 
 .achievement-tooltip {
-  display: block;
   position: absolute;
-  bottom: 110%;
-  left: 50%;
-  transform: translateX(-50%) translateY(0);
-  background: linear-gradient(to bottom, rgba(40, 44, 52, 0.95), rgba(25, 28, 36, 0.95));
-  color: white;
-  padding: 10px;
-  border-radius: 6px;
-  width: 200px;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-  z-index: 100;
-  font-size: 0.8rem;
-  opacity: 0;
-  pointer-events: none;
-  transition: all 0.3s ease;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.achievement-tooltip::after {
-  content: '';
-  position: absolute;
-  top: 100%;
+  bottom: calc(100% + 8px);
   left: 50%;
   transform: translateX(-50%);
-  border-width: 6px;
-  border-style: solid;
-  border-color: rgba(25, 28, 36, 0.95) transparent transparent transparent;
+  width: 200px;
+  padding: 0.6rem 0.7rem;
+  border-radius: 8px;
+  background: var(--boly-bg-darker);
+  border: 1px solid rgba(251, 251, 251, 0.12);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: var(--light-gray);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  z-index: 10;
 }
 
 .achievement-tooltip strong {
   display: block;
-  margin-bottom: 6px;
-  color: var(--boly-button-blue);
+  color: var(--light);
+  margin-bottom: 0.2rem;
 }
 
-.achievement-tooltip p {
-  margin: 0;
-  font-size: 0.75rem;
-  line-height: 1.4;
-  opacity: 0.8;
+.achievement:hover .achievement-tooltip {
+  opacity: 1;
 }
 
-.achievement-progress {
-  height: 3px;
-  width: 30px;
-  background-color: rgba(0, 0, 0, 0.3);
-  border-radius: 2px;
-  overflow: hidden;
-  margin-top: 4px;
-  margin-left: 2px;
-}
-
-.progress-bar {
-  height: 100%;
-  background-color: var(--boly-button-blue);
-}
-
-.no-achievements {
-  font-family: 'Poppins', sans-serif;
-  font-size: 0.8rem;
-  color: black;
-  font-style: normal;
-}
-
-.achievements-loading {
+.row-actions {
   display: flex;
-  justify-content: center;
-  gap: 4px;
   align-items: center;
-}
-
-.loading-dot {
-  width: 6px;
-  height: 6px;
-  background-color: rgba(255, 255, 255, 0.6);
-  border-radius: 50%;
-  animation: dot-pulse 1.4s infinite ease-in-out;
-}
-
-.loading-dot:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.loading-dot:nth-child(3) {
-  animation-delay: 0.4s;
-}
-
-@keyframes dot-pulse {
-  0%,
-  100% {
-    transform: scale(0.6);
-    opacity: 0.6;
-  }
-  50% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-/* Game Actions Section */
-.game-actions {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 0.8rem 1rem 1.2rem;
   gap: 0.5rem;
 }
 
 .action-button {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 0.6rem;
-  padding: 0.7rem 1.5rem;
+  gap: 0.5rem;
+  min-width: 150px;
+  min-height: 44px;
+  padding: 0.55rem 1.2rem;
   border: none;
   border-radius: 8px;
-  font-family: 'Anton', Impact, sans-serif;
-  font-style: italic;
-  font-size: 1rem;
+  color: var(--light);
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
   position: relative;
   overflow: hidden;
-  min-width: 150px;
-  letter-spacing: 0.5px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s ease, filter 0.15s ease, background-color 0.15s ease;
 }
 
-.action-button::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0));
-  pointer-events: none;
+.action-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.action-button:active:not(:disabled) {
+  transform: translateY(0);
+  filter: brightness(0.92);
+}
+
+.action-button:focus-visible,
+.options-button:focus-visible {
+  outline: 2px solid var(--boly-button-purple);
+  outline-offset: 2px;
 }
 
 .play-button {
-  background-color: #48ace4;
-  color: white;
+  background: var(--boly-button-purple);
 }
 
-.play-button:hover {
-  transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 6px 12px rgba(30, 100, 200, 0.4);
-  background-color: #5ebdf5;
+.play-button:hover:not(:disabled) {
+  background: var(--boly-button-purple-hover);
 }
 
 .download-button {
-  font-family: 'Poppins', sans-serif;
-  background: var(--boly-button-pink);
-  color: white;
+  background: var(--boly-button-blue);
 }
 
-.download-button:hover {
-  transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
-  background: var(--boly-button-pink);
+.download-button:hover:not(:disabled) {
+  background: var(--boly-button-blue-hover);
 }
 
-/* Amber rather than the play blue: an update is available and worth noticing,
-   but the game is still playable, so it shouldn't read as an error. */
+/* Amber rather than the play color: an update is available and worth
+   noticing, but the game is still playable, so it shouldn't read as an error. */
 .update-button {
-  font-family: 'Poppins', sans-serif;
-  background-color: #e0912f;
-  color: white;
+  background: #e0912f;
 }
 
-.update-button:hover {
-  transform: translateY(-2px) scale(1.02);
-  box-shadow: 0 6px 12px rgba(180, 110, 20, 0.4);
-  background-color: #f0a344;
+.update-button:hover:not(:disabled) {
+  background: #f0a344;
 }
 
-.downloading-button {
-  font-family: 'Poppins', sans-serif;
-  background: var(--boly-button-green);
-  color: white;
-  cursor: progress;
-  position: relative;
-  overflow: hidden;
-}
-
+.downloading-button,
 .installing-button {
-  font-family: 'Poppins', sans-serif;
   background: var(--boly-button-green);
-  color: white;
   cursor: progress;
-  position: relative;
-  overflow: hidden;
 }
 
 .running-button {
-  font-family: 'Poppins', sans-serif;
   background: var(--boly-button-blue);
-  color: white;
   cursor: not-allowed;
-  position: relative;
-  overflow: hidden;
+}
+
+.action-button:disabled {
+  opacity: 0.85;
 }
 
 .downloading-button .icon,
@@ -1002,10 +805,10 @@ async function Download() {
 @keyframes pulse-glow {
   0%,
   100% {
-    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.7));
+    opacity: 0.7;
   }
   50% {
-    filter: drop-shadow(0 0 5px rgba(255, 255, 255, 1));
+    opacity: 1;
   }
 }
 
@@ -1031,31 +834,17 @@ async function Download() {
   }
 }
 
-.downloading-button:hover,
-.installing-button:hover,
-.running-button:hover {
-  transform: none;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-}
-
 .button-text {
-  font-family: 'Poppins', sans-serif;
   position: relative;
   z-index: 1;
 }
 
 .icon {
-  width: 1.2em;
-  height: 1.2em;
+  width: 1.1em;
+  height: 1.1em;
+  fill: currentColor;
   position: relative;
   z-index: 1;
-}
-
-.download-button:disabled {
-  opacity: 0.7;
-  transform: none;
-  cursor: not-allowed;
-  box-shadow: none;
 }
 
 /* Options Button and Dropdown */
@@ -1067,44 +856,36 @@ async function Download() {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  border: none;
+  width: 44px;
+  height: 44px;
+  border: 1px solid rgba(251, 251, 251, 0.15);
   border-radius: 8px;
-  background: rgba(0, 0, 0, 0.1);
-  color: #666;
+  background: rgba(251, 251, 251, 0.06);
+  color: var(--light);
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: background-color 0.15s ease;
 }
 
-.options-button:hover {
-  background: rgba(0, 0, 0, 0.15);
-  color: #333;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
-}
-
+.options-button:hover,
 .options-button.active {
-  background: #48ace4;
-  color: white;
+  background: rgba(251, 251, 251, 0.14);
 }
 
 .options-icon {
   width: 16px;
   height: 16px;
+  fill: currentColor;
 }
 
 .options-dropdown {
   position: absolute;
-  bottom: 100%;
+  top: calc(100% + 4px);
   right: 0;
-  margin-bottom: 4px;
-  background: white;
+  min-width: 140px;
+  background: var(--boly-bg-darker);
+  border: 1px solid rgba(251, 251, 251, 0.12);
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  border: 1px solid rgba(0, 0, 0, 0.1);
-  min-width: 120px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.45);
   z-index: 1000;
   overflow: hidden;
 }
@@ -1118,29 +899,77 @@ async function Download() {
   background: none;
   font-family: 'Poppins', sans-serif;
   font-size: 0.9rem;
-  color: #333;
+  color: var(--light);
   cursor: pointer;
-  transition: background-color 0.2s ease;
   text-align: left;
 }
 
 .dropdown-item:hover {
-  background: rgba(0, 0, 0, 0.05);
+  background: rgba(251, 251, 251, 0.08);
 }
 
 .uninstall-item:hover {
-  background: rgba(220, 53, 69, 0.1);
-  color: #dc3545;
+  background: rgba(229, 72, 77, 0.15);
+  color: #ff8589;
+}
+
+/* Skeleton */
+@keyframes skeleton-shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+
+.sk {
+  background: linear-gradient(90deg, rgba(255,255,255,0.08) 25%, rgba(255,255,255,0.18) 50%, rgba(255,255,255,0.08) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s infinite;
+  border-radius: 6px;
+}
+
+.sk-row {
+  cursor: default;
+  animation: none;
+}
+
+.sk-capsule { width: 100%; aspect-ratio: 16 / 9; border-radius: 10px; }
+.sk-text { display: flex; flex-direction: column; gap: 0.6rem; }
+.sk-title { width: 40%; height: 1.1rem; }
+.sk-line { width: 85%; height: 0.85rem; }
+.sk-line.short { width: 30%; }
+.sk-action-btn { width: 150px; height: 44px; border-radius: 8px; }
+
+@keyframes row-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lib-row {
+    animation: none;
+    transition: none;
+  }
 }
 
 @media (max-width: 768px) {
-  .library-item {
-    width: 100%;
-    max-width: 320px;
+  .lib-row {
+    grid-template-columns: 120px minmax(0, 1fr);
+    gap: 0.85rem;
+    align-items: start;
+    padding: 0.6rem;
   }
 
-  .options-dropdown {
-    right: -8px;
+  .row-actions {
+    grid-column: 1 / -1;
+  }
+
+  .action-button {
+    flex: 1;
   }
 }
 </style>

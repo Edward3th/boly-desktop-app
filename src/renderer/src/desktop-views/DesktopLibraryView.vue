@@ -1,13 +1,15 @@
 <script lang="ts" setup>
 //import { useI18n } from 'vue-i18n'
 import DesktopLibraryItem from '@/desktop-components/DesktopLibraryItem.vue'
-import { onMounted, ref, onBeforeUnmount } from 'vue'
+import GameFilters from '@/components/games/GameFilters.vue'
+import { computed, onMounted, ref, onBeforeUnmount, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuth, useUser, useSubscription, useGames } from '../stores'
 import useGameRoutes from '../desktop-stores/gameRoutes'
 import axios from 'axios'
 import type { Game, Subscription } from '@/types'
 import { storeToRefs } from 'pinia'
+import { useGameFilters } from '@/composables/useGameFilters'
 
 const auth = useAuth()
 const user = useUser()
@@ -24,6 +26,27 @@ const showInstalledOnly = ref(false)
 const showSubscriptionGames = ref(false)
 const currentSubscription = ref<Subscription | null>(null)
 const { subscriptions } = storeToRefs(subscriptionStore)
+
+// /v1/games/user doesn't carry the educational summary; the public store list
+// (games.getAll, which this view already loads) does, so each library game
+// borrows it from there by id. Assigned onto the same objects rather than
+// copies: DesktopLibraryItem mutates its item (installed, uninstalled...) and
+// the install handlers above update these same objects by index.
+const educationById = computed(() => new Map(games.games.map((game) => [game.game_id, game.education])))
+watch(
+  [ownedGames, educationById],
+  () => {
+    for (const game of ownedGames.value) {
+      if (!game.education) game.education = educationById.value.get(game.game_id) ?? null
+    }
+  },
+  { immediate: true }
+)
+
+const { query, gradeCode, groupSlug, gameType, hasActiveFilters, clearFilters, filteredGames } = useGameFilters(
+  ownedGames,
+  { syncUrl: true }
+)
 
 if (!auth.isLoggedIn) {
   router.back()
@@ -300,7 +323,7 @@ onBeforeUnmount(() => {
 <template>
   <div v-if="isLoading" class="section">
     <div class="main-container">
-      <div class="list skeleton-loading">
+      <div class="list">
         <DesktopLibraryItem v-for="n in 4" :key="n" :loading="true" :item="{} as any" />
       </div>
     </div>
@@ -338,9 +361,36 @@ onBeforeUnmount(() => {
           </button>
         </div>
       </div>
-      <div v-if="ownedGames.length > 0" class="list">
-        <DesktopLibraryItem v-for="item in ownedGames" :key="item.game_id" :item="item" />
-      </div>
+      <template v-if="ownedGames.length > 0">
+        <GameFilters
+          v-model:query="query"
+          v-model:grade-code="gradeCode"
+          v-model:group-slug="groupSlug"
+          v-model:game-type="gameType"
+        />
+
+        <div class="results-bar">
+          <span aria-live="polite">{{ $t('store_results', filteredGames.length) }}</span>
+          <button v-if="hasActiveFilters" type="button" class="link-button" @click="clearFilters">
+            {{ $t('store_clear_filters') }}
+          </button>
+        </div>
+
+        <!-- Items are keyed by game id (not remounted on filter changes): each
+             one listens for its own download/install/run events. -->
+        <div v-if="filteredGames.length > 0" class="list">
+          <DesktopLibraryItem
+            v-for="(item, index) in filteredGames"
+            :key="item.game_id"
+            :item="item"
+            :index="index"
+          />
+        </div>
+        <div v-else class="empty-library">
+          <p>{{ $t('store_empty_title') }}</p>
+          <button class="browse-button" @click="clearFilters">{{ $t('store_clear_filters') }}</button>
+        </div>
+      </template>
       <div v-else class="empty-library">
         <p>{{ showSubscriptionGames ? $t('no_subscription_games') : $t('no_owned_games') }}</p>
         <button class="browse-button" @click="router.push('/games')">
@@ -396,13 +446,49 @@ h2 {
   gap: 10px;
 }
 
-.list {
-  flex: 1;
+.section {
+  min-width: 0;
+}
+
+.main-container {
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1rem 3rem;
+  box-sizing: border-box;
   display: flex;
-  justify-content: center;
-  gap: 55px;
-  flex-wrap: wrap;
-  padding: 40px;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+.results-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: var(--light-gray);
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.85rem;
+  padding: 0 0.25rem;
+}
+
+.link-button {
+  border: none;
+  background: transparent;
+  color: var(--boly-button-light-blue);
+  font-family: inherit;
+  font-size: inherit;
+  padding: 0.25rem 0;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  text-decoration: underline;
 }
 
 .loading_container {
