@@ -66,6 +66,93 @@ export interface Game {
    *  a build can be installed and played for review before it's approved. */
   pending_review?: boolean
   pending_build_id?: number
+  /** Admin-only flag on the API: playable without a subscription. */
+  free_to_play?: boolean
+  /** Present on the public list and detail; null until the studio fills it in. */
+  education?: GameEducationSummary | null
+}
+
+// ─── Mineduc curriculum & per-game educational content ───────────────────────
+// Mirrors ffstudios-shop's types; the app only reads them.
+
+// A grade level (Kínder .. 4° medio). "Grade", not "course": on the API a
+// course is a class inside an institution.
+export interface CurriculumGrade {
+  grade_id: number
+  code: string // NT2, 1B..8B, 1M..4M
+  name: string
+  stage: 'parvularia' | 'basica' | 'media'
+  sort_order: number
+}
+
+// What the store's subject filter shows (groups Biología/Física/Química under
+// "Ciencias Naturales", Kínder núcleos under their closest subject...).
+export interface CurriculumSubjectGroup {
+  subject_group_id: number
+  slug: string
+  name: string
+  sort_order: number
+}
+
+export interface CurriculumSubject {
+  subject_id: number
+  name: string
+  subject_group_id: number
+  sort_order: number
+  grade_ids: number[] // grades it is taught in, in grade order
+}
+
+export interface CurriculumCatalog {
+  grades: CurriculumGrade[]
+  subject_groups: CurriculumSubjectGroup[]
+  subjects: CurriculumSubject[]
+}
+
+export interface CurriculumUnit {
+  unit_id: number
+  grade_id: number
+  subject_id: number
+  area: string
+  number: number | null // null for Kínder núcleos
+  title: string
+  focus: string | null
+  curricular_plan: string | null
+  curricular_note: string | null
+  source_url: string | null
+}
+
+export interface GameEducationTarget {
+  grade_id: number
+  subject_id: number
+}
+
+export interface GameEducationSummary {
+  short_description: LocalizedString | null
+  topic: LocalizedString | null
+  targets: GameEducationTarget[]
+}
+
+export interface GameEducation {
+  game_id: number
+  description: LocalizedString | null
+  short_description: LocalizedString | null
+  topic: LocalizedString | null
+  teaching_guide: unknown | null
+  targets: (GameEducationTarget & {
+    grade_code: string
+    grade_name: string
+    subject_name: string
+    subject_group_id: number
+  })[]
+  units: CurriculumUnit[]
+  oas: {
+    oa_id: number
+    grade_id: number
+    subject_id: number
+    code: string
+    text: string
+    unit_ids: number[] // every unit that works on it — intersect with `units`
+  }[]
 }
 
 export interface Achievement {

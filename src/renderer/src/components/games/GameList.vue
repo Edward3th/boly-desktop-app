@@ -1,595 +1,451 @@
 <script setup lang="ts">
-import GameItem from '@/components/games/GameItem.vue'
-import { useGames } from '@/stores'
-import { onMounted, ref, computed, watch, onBeforeUnmount, nextTick } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter, type LocationQuery } from 'vue-router'
 import { storeToRefs } from 'pinia'
+import { useI18n } from 'vue-i18n'
+import { useCurriculum, useGames } from '@/stores'
+import type { Game, GameEducationSummary, LocalizedString } from '@/types'
+import { normalizeForSearch } from '@/utils/curriculum'
+import GameSearchRow from '@/components/games/GameSearchRow.vue'
+import SkeletonBase from '@/components/skeletons/SkeletonBase.vue'
+import GamepadIcon from '@/components/icons/GamepadIcon.vue'
 
+// The store's game search: one row per game, filterable by name, grade,
+// subject and type. On /games the filters live in the URL
+// (?q=&curso=3B&asignatura=matematica&tipo=web) so a teacher can share a
+// filtered list. Under a game's page it is a plain "more games" list, with
+// games sharing a subject with that game first.
+const props = withDefaults(
+  defineProps<{
+    showFilters?: boolean
+    excludeGameId?: number | null
+    relatedTo?: GameEducationSummary | null
+    title?: string
+  }>(),
+  {
+    showFilters: true,
+    excludeGameId: null,
+    relatedTo: null,
+    title: ''
+  }
+)
+
+const { t, locale } = useI18n()
+const route = useRoute()
+const router = useRouter()
 const gamesStore = useGames()
+const curriculum = useCurriculum()
 const { loading, games } = storeToRefs(gamesStore)
 
-const activeTab = ref('all')
-const isMobile = ref(window.innerWidth <= 768)
-const carouselRef = ref<HTMLDivElement | null>(null)
-const isDragging = ref(false)
-const startX = ref(0)
-const scrollLeft = ref(0)
-const itemWidth = ref(0)
+const GAME_TYPES = { web: 2, descargable: 3 } as const
+type GameTypeFilter = '' | keyof typeof GAME_TYPES
+const STAGES = ['parvularia', 'basica', 'media'] as const
 
-let refreshTimeout: ReturnType<typeof setTimeout> | null = null
-async function refreshGames() {
-  if (refreshTimeout) {
-    return
-  }
+const query = ref('')
+const gradeCode = ref('')
+const groupSlug = ref('')
+const gameType = ref<GameTypeFilter>('')
 
-  refreshTimeout = setTimeout(() => {
-    refreshTimeout = null
-  }, 5000) // Only allow refresh every 5 seconds
-
-  await gamesStore.getAll()
-}
-
-// Cache filtered games to prevent unnecessary recalculations
-const filteredGames = computed(() => {
-  const result = games.value.filter((game) => {
-    switch (activeTab.value) {
-      case 'downloadable':
-        return game.game_type_id === 3
-      case 'web':
-        return game.game_type_id === 2
-      case 'dlc':
-        return game.game_type_id === 1
-      default:
-        return true
-    }
-  })
-  return result
-})
-
-// Reset carousel position when tab changes
-watch(activeTab, () => {
-  resetCarousel()
-})
-
-// Reset carousel
-async function resetCarousel() {
-  await nextTick()
-  if (carouselRef.value) {
-    carouselRef.value.scrollLeft = 0
-
-    // Get item width after DOM update
-    const items = carouselRef.value.querySelectorAll('.carousel-item')
-    if (items.length > 0) {
-      itemWidth.value = items[0].clientWidth
-    }
-  }
-}
-
-// Carousel functions for mobile
-function startDrag(e: MouseEvent | TouchEvent) {
-  if (!isMobile.value || !carouselRef.value) return
-
-  isDragging.value = true
-
-  // Handle both mouse and touch events
-  if (e instanceof MouseEvent) {
-    startX.value = e.pageX
-  } else {
-    startX.value = e.touches[0].pageX
-  }
-
-  scrollLeft.value = carouselRef.value.scrollLeft
-  carouselRef.value.style.scrollBehavior = 'auto'
-  carouselRef.value.style.cursor = 'grabbing'
-}
-
-function doDrag(e: MouseEvent | TouchEvent) {
-  if (!isDragging.value || !carouselRef.value) return
-
-  let x
-  if (e instanceof MouseEvent) {
-    x = e.pageX
-    e.preventDefault() // Prevent text selection during drag
-  } else {
-    x = e.touches[0].pageX
-  }
-
-  const walkX = (x - startX.value) * 1.5 // Multiply by factor for faster scrolling
-  carouselRef.value.scrollLeft = scrollLeft.value - walkX
-}
-
-function endDrag() {
-  if (!carouselRef.value) return
-
-  isDragging.value = false
-  carouselRef.value.style.cursor = 'grab'
-  carouselRef.value.style.scrollBehavior = 'smooth'
-
-  // Snap to the nearest item
-  snapToNearestItem()
-}
-
-function snapToNearestItem() {
-  if (!carouselRef.value || !itemWidth.value) return
-
-  const scrollPosition = carouselRef.value.scrollLeft
-
-  // Calculate the nearest item index
-  const itemIndex = Math.round(scrollPosition / itemWidth.value)
-
-  // Scroll to the nearest item
-  carouselRef.value.scrollTo({
-    left: itemIndex * itemWidth.value,
-    behavior: 'smooth'
-  })
-}
-
-// Navigate to next or previous slide
-function navigateCarousel(direction: 'prev' | 'next') {
-  if (!carouselRef.value || !itemWidth.value) return
-
-  carouselRef.value.style.scrollBehavior = 'smooth'
-
-  // Calculate current approximate index
-  const currentIndex = Math.round(carouselRef.value.scrollLeft / itemWidth.value)
-  let targetIndex = direction === 'prev' ? currentIndex - 1 : currentIndex + 1
-
-  // Ensure targetIndex is within bounds
-  const maxIndex = filteredGames.value.length - 1
-  targetIndex = Math.max(0, Math.min(targetIndex, maxIndex))
-
-  carouselRef.value.scrollLeft = targetIndex * itemWidth.value
-}
-
-// Handle window resize
-const handleResize = () => {
-  isMobile.value = window.innerWidth <= 768
-
-  // Reset the carousel when screen size changes
-  if (isMobile.value) {
-    setTimeout(() => {
-      resetCarousel()
-    }, 100)
-  }
-}
+const catalog = computed(() => curriculum.catalog)
 
 onMounted(() => {
-  if (!games.value.length) {
-    refreshGames()
+  if (!games.value.length) gamesStore.getAll()
+  // Without the catalog the list still works; only the curriculum filters
+  // and the subject/grade labels stay empty.
+  curriculum.fetchCatalog().catch((error) => console.error('Error loading curriculum catalog:', error))
+})
+
+// ─── URL <-> filters ─────────────────────────────────────────────────────────
+
+const queryParam = (value: LocationQuery[string]) => (typeof value === 'string' ? value : '')
+
+function readFiltersFromUrl(urlQuery: LocationQuery) {
+  query.value = queryParam(urlQuery.q)
+  gradeCode.value = queryParam(urlQuery.curso)
+  groupSlug.value = queryParam(urlQuery.asignatura)
+  const tipo = queryParam(urlQuery.tipo)
+  gameType.value = tipo in GAME_TYPES ? (tipo as GameTypeFilter) : ''
+}
+
+if (props.showFilters) {
+  watch(() => route.query, readFiltersFromUrl, { immediate: true })
+
+  watch([query, gradeCode, groupSlug, gameType], () => {
+    const next = {
+      ...route.query,
+      q: query.value.trim() || undefined,
+      curso: gradeCode.value || undefined,
+      asignatura: groupSlug.value || undefined,
+      tipo: gameType.value || undefined
+    }
+    const unchanged = (['q', 'curso', 'asignatura', 'tipo'] as const).every(
+      (key) => queryParam(route.query[key]) === (next[key] ?? '')
+    )
+    if (!unchanged) router.replace({ query: next })
+  })
+}
+
+const hasActiveFilters = computed(
+  () => !!(query.value.trim() || gradeCode.value || groupSlug.value || gameType.value)
+)
+
+function clearFilters() {
+  query.value = ''
+  gradeCode.value = ''
+  groupSlug.value = ''
+  gameType.value = ''
+}
+
+// ─── Filtering ───────────────────────────────────────────────────────────────
+
+const gradesByStage = computed(() =>
+  STAGES.map((stage) => ({
+    stage,
+    grades: (catalog.value?.grades ?? []).filter((grade) => grade.stage === stage)
+  })).filter((group) => group.grades.length > 0)
+)
+
+const selectedGrade = computed(() => catalog.value?.grades.find((grade) => grade.code === gradeCode.value))
+const selectedGroup = computed(() =>
+  catalog.value?.subject_groups.find((group) => group.slug === groupSlug.value)
+)
+
+const localizedTexts = (...values: (LocalizedString | null | undefined)[]) =>
+  values.flatMap((value) => (value ? Object.values(value) : [])).join(' ')
+
+const subjectGroupIds = (summary: GameEducationSummary | null | undefined) =>
+  new Set(
+    (summary?.targets ?? [])
+      .map((target) => curriculum.subjectById.get(target.subject_id)?.subject_group_id)
+      .filter((id): id is number => id !== undefined)
+  )
+
+const filteredGames = computed<Game[]>(() => {
+  let list = games.value.filter((game) => game.game_id !== props.excludeGameId)
+
+  if (gameType.value) {
+    list = list.filter((game) => game.game_type_id === GAME_TYPES[gameType.value as keyof typeof GAME_TYPES])
   }
 
-  // Add resize event listener
-  window.addEventListener('resize', handleResize)
+  // Grade and subject must hold for the same target: a game for Matemática 3°
+  // and Ciencias 5° is not a "Ciencias 3°" game.
+  const grade = selectedGrade.value
+  const group = selectedGroup.value
+  if (grade || group) {
+    list = list.filter((game) =>
+      (game.education?.targets ?? []).some(
+        (target) =>
+          (!grade || target.grade_id === grade.grade_id) &&
+          (!group || curriculum.subjectById.get(target.subject_id)?.subject_group_id === group.subject_group_id)
+      )
+    )
+  }
 
-  // Initial carousel setup
-  resetCarousel()
+  const text = normalizeForSearch(query.value.trim())
+  if (text) {
+    list = list.filter((game) =>
+      normalizeForSearch(
+        localizedTexts(game.name, game.education?.topic, game.education?.short_description)
+      ).includes(text)
+    )
+  }
+
+  if (props.relatedTo) {
+    const related = subjectGroupIds(props.relatedTo)
+    const sharesSubject = (game: Game) => [...subjectGroupIds(game.education)].some((id) => related.has(id))
+    list = [...list].sort((a, b) => Number(sharesSubject(b)) - Number(sharesSubject(a)))
+  }
+
+  return list
 })
 
-onBeforeUnmount(() => {
-  // Remove resize event listener
-  window.removeEventListener('resize', handleResize)
-})
-
-watch(
-  games,
-  (newGames) => {
-    console.log('Games updated:', newGames.length, 'games')
-    resetCarousel()
-  },
-  { deep: true, flush: 'post' }
-) // Delay until after DOM updates
+// Remounting the rows replays the cascade-in when a select changes, but not on
+// every keystroke in the search box.
+const rowsKey = computed(() => `${gradeCode.value}|${groupSlug.value}|${gameType.value}|${locale.value}`)
 </script>
 
 <template>
-  <div v-if="loading" class="section" :class="{ 'mobile-section': isMobile }">
-    <div class="list">
-      <GameItem v-for="n in 6" :key="n" :loading="true" :item="{} as any" />
-    </div>
-  </div>
-  <div v-else class="section" :class="{ 'mobile-section': isMobile }">
-    <!-- Desktop tabs layout -->
-    <div v-if="!isMobile" class="tabs">
-      <div class="tab-button" :class="{ active: activeTab === 'all' }" @click="activeTab = 'all'">
-        {{ $t('all_games').toUpperCase() }}
-      </div>
-      <div
-        class="tab-button"
-        :class="{ active: activeTab === 'downloadable' }"
-        @click="activeTab = 'downloadable'"
-      >
-        {{ $t('downloadable_games').toUpperCase() }}
-      </div>
-      <div class="tab-button" :class="{ active: activeTab === 'web' }" @click="activeTab = 'web'">
-        {{ $t('web_games').toUpperCase() }}
-      </div>
-      <div class="tab-button" :class="{ active: activeTab === 'dlc' }" @click="activeTab = 'dlc'">
-        {{ $t('downloadable_content').toUpperCase() }}
-      </div>
-    </div>
+  <section class="store-list">
+    <h2 v-if="title" class="list-title">{{ title }}</h2>
 
-    <!-- Mobile layout with active tab on top -->
-    <div v-if="isMobile" class="mobile-active-tab">
-      <div class="tab-button active mobile-active-tab-button" @click="activeTab = activeTab">
-        {{
-          $t(
-            activeTab === 'all'
-              ? 'all_games'
-              : activeTab === 'downloadable'
-                ? 'downloadable_games'
-                : activeTab === 'web'
-                  ? 'web_games'
-                  : 'downloadable_content'
-          ).toUpperCase()
-        }}
-      </div>
-    </div>
-
-    <!-- Standard grid display for desktop -->
-    <div v-if="!isMobile" class="list">
-      <GameItem
-        v-for="item in filteredGames"
-        :key="item.game_id"
-        :item="{
-          ...item,
-          banner_url: item.banner_url || '',
-          price: item.price as Record<string, number>
-        }"
+    <div v-if="showFilters" class="filters" role="search">
+      <input
+        v-model="query"
+        type="search"
+        class="filter-control filter-search"
+        :placeholder="t('store_search_placeholder')"
+        :aria-label="t('store_search_placeholder')"
       />
+      <label class="filter">
+        <span class="sr-only">{{ t('store_filter_grade') }}</span>
+        <select v-model="gradeCode" class="filter-control" :class="{ active: gradeCode }">
+          <option value="">{{ t('store_all_grades') }}</option>
+          <optgroup v-for="group in gradesByStage" :key="group.stage" :label="t(`store_stage_${group.stage}`)">
+            <option v-for="grade in group.grades" :key="grade.grade_id" :value="grade.code">{{ grade.name }}</option>
+          </optgroup>
+        </select>
+      </label>
+      <label class="filter">
+        <span class="sr-only">{{ t('store_filter_subject') }}</span>
+        <select v-model="groupSlug" class="filter-control" :class="{ active: groupSlug }">
+          <option value="">{{ t('store_all_subjects') }}</option>
+          <option v-for="group in catalog?.subject_groups ?? []" :key="group.subject_group_id" :value="group.slug">
+            {{ group.name }}
+          </option>
+        </select>
+      </label>
+      <label class="filter">
+        <span class="sr-only">{{ t('store_filter_type') }}</span>
+        <select v-model="gameType" class="filter-control" :class="{ active: gameType }">
+          <option value="">{{ t('store_all_types') }}</option>
+          <option value="web">{{ t('store_type_web') }}</option>
+          <option value="descargable">{{ t('store_type_download') }}</option>
+        </select>
+      </label>
     </div>
 
-    <!-- Regular Carousel display for mobile (non-infinite) -->
-    <div v-else class="mobile-carousel-wrapper">
-      <!-- Navigation arrows - only show if there are enough items -->
-      <button
-        v-if="filteredGames.length > 1"
-        class="carousel-control carousel-prev"
-        aria-label="Previous"
-        @click="navigateCarousel('prev')"
-      >
-        &#10094;
+    <div v-if="showFilters && !(loading && !games.length)" class="results-bar">
+      <span aria-live="polite">{{ t('store_results', filteredGames.length) }}</span>
+      <button v-if="hasActiveFilters" type="button" class="link-button" @click="clearFilters">
+        {{ t('store_clear_filters') }}
       </button>
+    </div>
 
-      <div
-        ref="carouselRef"
-        class="carousel-container"
-        @mousedown="startDrag"
-        @mousemove="doDrag"
-        @mouseup="endDrag"
-        @mouseleave="endDrag"
-        @touchstart="startDrag"
-        @touchmove="doDrag"
-        @touchend="endDrag"
-      >
-        <div class="carousel-track">
-          <div
-            v-for="(item, index) in filteredGames"
-            :key="`${item.game_id}-${index}`"
-            class="carousel-item"
-          >
-            <GameItem
-              :item="{
-                ...item,
-                banner_url: item.banner_url || '',
-                price: item.price as Record<string, number>
-              }"
-              class="mobile-game-item"
-            />
-          </div>
+    <div v-if="loading && !games.length" class="rows" aria-hidden="true">
+      <div v-for="n in 4" :key="n" class="skeleton-row">
+        <SkeletonBase class="skeleton-capsule" height="auto" radius="10px" />
+        <div class="skeleton-text">
+          <SkeletonBase width="40%" height="1.1rem" />
+          <SkeletonBase width="85%" height="0.85rem" />
+          <SkeletonBase width="30%" height="0.85rem" />
         </div>
       </div>
+    </div>
 
-      <button
-        v-if="filteredGames.length > 1"
-        class="carousel-control carousel-next"
-        aria-label="Next"
-        @click="navigateCarousel('next')"
-      >
-        &#10095;
+    <div v-else-if="filteredGames.length > 0" :key="rowsKey" class="rows">
+      <GameSearchRow v-for="(game, index) in filteredGames" :key="game.game_id" :game="game" :index="index" />
+    </div>
+
+    <div v-else-if="showFilters" class="empty-state">
+      <GamepadIcon class="empty-icon" aria-hidden="true" />
+      <p class="empty-title">{{ t('store_empty_title') }}</p>
+      <p class="empty-hint">{{ t('store_empty_hint') }}</p>
+      <button v-if="hasActiveFilters" type="button" class="clear-button" @click="clearFilters">
+        {{ t('store_clear_filters') }}
       </button>
     </div>
-
-    <!-- Mobile stacked inactive tabs below the carousel -->
-    <div v-if="isMobile" class="mobile-inactive-tabs">
-      <div v-if="activeTab !== 'all'" class="tab-button mobile-tab" @click="activeTab = 'all'">
-        {{ $t('all_games').toUpperCase() }}
-      </div>
-      <div
-        v-if="activeTab !== 'downloadable'"
-        class="tab-button mobile-tab"
-        @click="activeTab = 'downloadable'"
-      >
-        {{ $t('downloadable_games').toUpperCase() }}
-      </div>
-      <div v-if="activeTab !== 'web'" class="tab-button mobile-tab" @click="activeTab = 'web'">
-        {{ $t('web_games').toUpperCase() }}
-      </div>
-      <div v-if="activeTab !== 'dlc'" class="tab-button mobile-tab" @click="activeTab = 'dlc'">
-        {{ $t('downloadable_content').toUpperCase() }}
-      </div>
-    </div>
-  </div>
+  </section>
 </template>
 
 <style scoped>
-.list {
-  width: 90%;
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 2rem;
-  padding: 20px;
-  border-radius: 20px;
-  justify-items: center;
-}
-
-.mobile-active-tab {
+.store-list {
   width: 100%;
-  padding: 5px 0;
-  margin-bottom: 5px;
-}
-
-.mobile-active-tab-button {
-  width: 100%;
-  padding: 10px;
-  text-align: center;
-  font-weight: bold;
-  border-radius: 8px;
-  margin: 0;
-  background-color: var(--boly-button-pink);
-  color: white;
-  font-size: 1rem;
-}
-
-.mobile-inactive-tabs {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 2rem 1rem 3rem;
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  width: 100%;
-  gap: 5px;
-  margin-top: 10px;
+  gap: 1rem;
+  min-width: 0;
+  font-family: 'Poppins', sans-serif;
+  color: var(--light);
 }
 
-.mobile-carousel-wrapper {
-  position: relative;
-  width: 100%;
-  padding: 0;
-  margin: 5px 0;
-  overflow: hidden;
-}
-
-.carousel-control {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 36px;
-  height: 36px;
-  background-color: rgba(0, 0, 0, 0.5);
-  color: white;
-  border: none;
-  border-radius: 50%;
-  font-size: 16px;
-  z-index: 10;
-  cursor: pointer;
-  opacity: 0.7;
-  transition: opacity 0.3s ease;
-}
-
-.carousel-control:hover {
-  opacity: 1;
-}
-
-.carousel-prev {
-  left: 5px;
-}
-
-.carousel-next {
-  right: 5px;
-}
-
-.carousel-container {
-  width: 100%;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-  cursor: grab;
-  padding: 10px 0;
-  -webkit-overflow-scrolling: touch;
-}
-
-.carousel-container::-webkit-scrollbar {
-  display: none;
-}
-
-.carousel-track {
-  display: flex;
-  padding: 0 10px;
-}
-
-.carousel-item {
-  flex: 0 0 auto;
-  width: 80%;
-  padding: 0 5px;
-  scroll-snap-align: center;
-  transition: transform 0.3s ease;
-}
-
-.tabs {
-  padding-top: 40px;
-  width: 100%;
-  display: flex;
-  flex-direction: row;
-  justify-content: space-between;
-  gap: 5px;
-}
-
-.tab-button {
-  flex-grow: 0.35;
+.list-title {
   font-family: 'Anton', Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
-  font-size: medium;
-  background-color: var(--boly-button-pink);
-  padding: 10px;
-  transition-duration: 0.2s;
-  border-radius: 5px;
+  font-style: italic;
+  font-size: clamp(1.4rem, 3vw, 1.9rem);
+  margin: 0;
+}
+
+.filters {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr));
+  gap: 0.6rem;
+  padding: 0.75rem;
+  border-radius: 12px;
+  background: var(--boly-bg-dark-blue);
+  border: 1px solid rgba(251, 251, 251, 0.08);
+}
+
+.filter {
+  display: flex;
+  min-width: 0;
+}
+
+.filter-control {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 0.55rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid rgba(251, 251, 251, 0.15);
+  background: rgba(19, 10, 37, 0.45);
+  color: var(--light);
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.9rem;
+  text-overflow: ellipsis;
+}
+
+.filter-control:focus {
+  outline: 2px solid var(--boly-button-purple);
+  outline-offset: 1px;
+}
+
+.filter-control.active {
+  border-color: var(--boly-button-purple);
+  background: rgba(188, 61, 228, 0.18);
+}
+
+/* The native dropdown panel is rendered white by the OS — don't let the
+   options inherit the light on-dark text color of the select itself */
+.filter-control option,
+.filter-control optgroup {
+  color: #1c1c24;
+  background: #ffffff;
+}
+
+.results-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  color: var(--light-gray);
+  font-size: 0.85rem;
+  padding: 0 0.25rem;
+}
+
+.link-button {
+  border: none;
+  background: transparent;
+  color: var(--boly-button-light-blue);
+  font-family: inherit;
+  font-size: inherit;
+  padding: 0.25rem 0;
   cursor: pointer;
 }
 
-.mobile-tab {
-  width: 100%;
-  flex-basis: 100%;
-  margin-bottom: 4px;
-  font-size: small;
-  padding: 8px 4px;
-  text-align: center;
-  background-color: var(--boly-bg-dark-transparent);
+.link-button:hover {
+  text-decoration: underline;
 }
 
-.tab-button:hover {
-  flex-grow: 0.4;
-  background-color: var(--boly-button-pink);
-  transition-duration: 0.2s;
+.rows {
+  display: flex;
+  flex-direction: column;
 }
 
-.mobile-tab:hover {
-  flex-grow: 0;
-  transform: scale(1.02);
-  background-color: var(--boly-button-pink);
+/* Hairline separators instead of boxing every row (GameSearchRow draws its own). */
+.skeleton-row + .skeleton-row {
+  border-top: 1px solid rgba(84, 84, 84, 0.48);
 }
 
-.tab-button.active {
-  background-color: var(--boly-button-pink);
-  color: white;
+.skeleton-row {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: center;
+  padding: 0.75rem;
 }
 
-.section {
+.skeleton-capsule {
+  aspect-ratio: 16 / 9;
+}
+
+.skeleton-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  width: 100%;
+  gap: 0.5rem;
+  padding: 3rem 1rem;
+  text-align: center;
 }
 
-.mobile-section {
-  padding: 0.5rem;
-  width: 100%;
-  max-width: 100vw;
-  box-sizing: border-box;
-  overflow-x: hidden;
-  display: flex;
-  flex-direction: column;
+.empty-icon {
+  width: 56px;
+  height: 56px;
+  fill: rgba(251, 251, 251, 0.3);
+  margin-bottom: 0.5rem;
 }
 
-:deep(.mobile-game-item) {
-  width: 100%;
+.empty-title {
   margin: 0;
-  display: flex;
-  justify-content: center;
-  transform: scale(0.98);
+  font-size: 1.05rem;
+  font-weight: 600;
 }
 
-.carousel-item:hover {
-  transform: scale(1.02);
-  z-index: 1;
+.empty-hint {
+  margin: 0;
+  color: var(--light-gray);
+  font-size: 0.9rem;
+  max-width: 45ch;
 }
 
-@media (max-width: 600px) {
-  .carousel-item {
-    width: 90%;
-  }
-
-  .carousel-control {
-    width: 28px;
-    height: 28px;
-    font-size: 14px;
-  }
-
-  .mobile-active-tab-button {
-    font-size: 0.9rem;
-    padding: 8px;
-  }
-
-  :deep(.mobile-game-item) {
-    transform: scale(0.95);
-  }
+.clear-button {
+  margin-top: 0.75rem;
+  min-height: 44px;
+  padding: 0.6rem 1.4rem;
+  border: none;
+  border-radius: 8px;
+  background: var(--boly-button-purple);
+  color: var(--light);
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  transition: transform 0.15s ease, background-color 0.15s ease;
 }
 
-@media (max-width: 400px) {
-  .carousel-item {
-    width: 95%;
-  }
-
-  .mobile-tab {
-    font-size: x-small;
-    padding: 6px 2px;
-  }
-
-  .mobile-active-tab-button {
-    font-size: 0.8rem;
-    padding: 6px;
-  }
-
-  .carousel-control {
-    width: 24px;
-    height: 24px;
-    font-size: 12px;
-  }
-
-  :deep(.mobile-game-item) {
-    transform: scale(0.9);
-  }
+.clear-button:hover {
+  background: var(--boly-button-purple-hover);
+  transform: translateY(-1px);
 }
 
-/* Handle various device heights */
-@media (max-height: 750px) {
-  .mobile-section {
-    padding-top: 0;
+.clear-button:active {
+  transform: translateY(0);
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 900px) {
+  .filters {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  :deep(.mobile-main) {
-    padding: 4px;
+  .filter-search {
+    grid-column: 1 / -1;
   }
 }
 
-/*very short screens */
-@media (max-height: 600px) {
-  :deep(.mobile-main) {
-    gap: 0;
-    padding: 3px;
+@media (max-width: 768px) {
+  .store-list {
+    padding: 1.25rem 0.75rem 2.5rem;
   }
 
-  :deep(.mobile-main > img) {
-    height: 90px;
+  .filters {
+    grid-template-columns: minmax(0, 1fr);
   }
 
-  .carousel-container {
-    padding: 5px 0;
-  }
-
-  .mobile-active-tab-button {
-    padding: 5px;
-  }
-
-  .mobile-tab {
-    padding: 5px 2px;
-  }
-}
-
-@media (max-width: 360px) and (max-height: 640px) {
-  .mobile-tab {
-    font-size: 0.6rem;
-    padding: 4px 2px;
-  }
-
-  .mobile-active-tab-button {
-    font-size: 0.7rem;
-    padding: 4px;
-  }
-
-  :deep(.mobile-game-item) {
-    transform: scale(0.85);
-  }
-
-  .carousel-control {
-    width: 20px;
-    height: 20px;
-    font-size: 10px;
+  .skeleton-row {
+    grid-template-columns: 120px minmax(0, 1fr);
+    gap: 0.85rem;
   }
 }
 </style>

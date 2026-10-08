@@ -6,11 +6,13 @@ import AppleIcon from '@/components/icons/AppleIcon.vue'
 import StarIcon from '../icons/SolidStarIcon.vue'
 import HeartIcon from '../icons/HeartIcon.vue'
 import CustomGameMediaGallery from './CustomGameMediaGallery.vue'
-import { useAuth, useUser, useGames, useCart, useDeveloper } from '@/stores'
+import GameEducationPanel from '@/components/education/GameEducationPanel.vue'
+import { useAuth, useUser, useGames, useCart, useDeveloper, useCurriculum } from '@/stores'
 import useWishlist from '@/stores/wishlist'
 import { useI18n } from 'vue-i18n'
-import type { Game } from '@/types'
+import type { Game, GameEducation, LocalizedString } from '@/types'
 import { resolveImageUrl } from '@/utils/imageUrl'
+import { describeTargets } from '@/utils/curriculum'
 
 // Declare vue-star-rating in types/globals.d.ts instead
 declare global {
@@ -121,10 +123,44 @@ function toggleWishlist(): void {
   }
 }
 
+// ─── Educational content ─────────────────────────────────────────────────────
+
+const curriculum = useCurriculum();
+const education = ref<GameEducation | null>(null);
+const activeTab = ref<'general' | 'education'>('general');
+
+const hasEducation = computed(
+  () => !!education.value && (education.value.targets.length > 0 || education.value.oas.length > 0)
+);
+
+const localizedText = (value: LocalizedString | null | undefined) =>
+  value?.[i18n.locale.value] || value?.es || value?.en || '';
+
+// The line under the title: subjects, grade range and topic. Built from the
+// list summary already on the item, so it shows before the full content loads.
+const educationSummary = computed(() => {
+  const summary = props.item.education ?? education.value;
+  const { subjects, grades } = describeTargets(summary?.targets ?? [], curriculum.gradeById, curriculum.subjectById);
+  return { subjects: subjects.map((subject) => subject.name), grades, topic: localizedText(summary?.topic) };
+});
+
+async function loadEducation(gameId: number): Promise<void> {
+  activeTab.value = 'general';
+  education.value = null;
+  try {
+    const [loaded] = await Promise.all([curriculum.fetchGameEducation(gameId), curriculum.fetchCatalog()]);
+    // The item may have changed while this was in flight.
+    if (props.item?.game_id === gameId) education.value = loaded;
+  } catch (error) {
+    console.error('Error loading educational content:', error);
+  }
+}
+
 onMounted(async () => {
   if (props.item?.game_id) {
     console.log('GameDetails: Component mounted with game:', props.item.game_id);
     updateGameImages();
+    loadEducation(Number(props.item.game_id));
 
     if (props.item.developer_id) {
       await fetchDeveloperDetails(props.item.developer_id);
@@ -149,6 +185,7 @@ watch(
     if (newItem?.game_id) {
       console.log('GameDetails: Item prop changed:', newItem.game_id);
       updateGameImages();
+      loadEducation(Number(newItem.game_id));
 
       if (newItem.developer_id) {
         await fetchDeveloperDetails(newItem.developer_id);
@@ -181,11 +218,13 @@ function getGameName() {
       <h1>{{ getGameName() }}</h1>
       <p class="dev">{{ $t('developer') }}</p>
       <br>
-      <div class="info-faq">
-        <p>{{$t('general_info').toUpperCase()}}</p>
-        <p>|</p>
-        <p>{{$t('faq').toUpperCase()}}</p>
-      </div>
+      <ul v-if="educationSummary.subjects.length > 0 || educationSummary.topic" class="edu-summary">
+        <li v-for="subject in educationSummary.subjects" :key="subject" class="edu-chip">{{ subject }}</li>
+        <li v-if="educationSummary.grades" class="edu-chip grades">{{ educationSummary.grades }}</li>
+        <li v-if="educationSummary.topic" class="edu-topic">
+          <span>{{ $t('store_topic') }}:</span> {{ educationSummary.topic }}
+        </li>
+      </ul>
 
       <div class="main-container">
         <!-- Replace carousel with GameMediaGallery component -->
@@ -271,7 +310,28 @@ function getGameName() {
           </div>
         </div>
       </div>
-      <div class="desc">
+      <nav v-if="hasEducation" class="detail-tabs" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          class="detail-tab"
+          :class="{ active: activeTab === 'general' }"
+          :aria-selected="activeTab === 'general'"
+          @click="activeTab = 'general'"
+        >{{ $t('general_info') }}</button>
+        <button
+          type="button"
+          role="tab"
+          class="detail-tab"
+          :class="{ active: activeTab === 'education' }"
+          :aria-selected="activeTab === 'education'"
+          @click="activeTab = 'education'"
+        >{{ $t('game_tab_education') }}</button>
+      </nav>
+      <section v-if="hasEducation && activeTab === 'education' && education" class="edu-tab" role="tabpanel">
+        <GameEducationPanel :education="education" />
+      </section>
+      <div v-else class="desc" :role="hasEducation ? 'tabpanel' : undefined">
         {{ (props.item.description as Record<string, string>)?.[i18n.locale.value] || (props.item.description as Record<string, string>)?.['en'] || '' }}
       </div>
     </div>
@@ -348,9 +408,76 @@ function getGameName() {
   margin-top: 20px;
 }
 
-.info-faq{
-  font-size: small;
-  margin-bottom: 30px;
+.edu-summary{
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem 0.75rem;
+  margin: 0 0 1.5rem;
+  padding: 0;
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.85rem;
+}
+
+.edu-chip{
+  padding: 0.2rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(188, 61, 228, 0.2);
+  color: #ec85fc;
+  font-weight: 600;
+}
+
+.edu-chip.grades{
+  background: rgba(251, 251, 251, 0.08);
+  color: var(--light);
+}
+
+.edu-topic span{
+  color: var(--light-gray);
+}
+
+.detail-tabs{
+  display: flex;
+  gap: 0.25rem;
+  margin-top: 1.5rem;
+  border-bottom: 1px solid rgba(84, 84, 84, 0.48);
+}
+
+/* Overrides this component's blanket `button` rule (full width, Anton). */
+.detail-tab{
+  width: auto;
+  flex-grow: 0;
+  margin: 0;
+  padding: 0.6rem 1.1rem;
+  background: transparent;
+  border-radius: 8px 8px 0 0;
+  border-bottom: 2px solid transparent;
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--light-gray);
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.detail-tab:hover{
+  color: var(--light);
+  background: rgba(251, 251, 251, 0.05);
+}
+
+.detail-tab.active{
+  color: var(--light);
+  border-bottom-color: var(--boly-button-purple);
+}
+
+.detail-tab:focus-visible{
+  outline: 2px solid var(--boly-button-purple);
+  outline-offset: 2px;
+}
+
+.edu-tab{
+  margin-top: 1.25rem;
 }
 
 .main-container{
