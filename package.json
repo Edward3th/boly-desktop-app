@@ -1,6 +1,6 @@
 {
   "name": "boly",
-  "version": "1.4.7",
+  "version": "1.4.8",
   "description": "An Electron application with Vue and TypeScript",
   "main": "./out/main/index.js",
   "author": "tiagowhuber",
