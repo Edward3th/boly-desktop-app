@@ -135,6 +135,22 @@ async function scenarioValid(ctx) {
       : check('No Authorization header (key is the credential)', 'pass'),
   )
 
+  // The Boly SDK names itself on every request; the older ParamsCatcher
+  // scripts don't, which is still a valid integration — hence warn, not fail.
+  const sdkName = 'Identifies the SDK (X-Boly-SDK header)'
+  const withSdk = beats.filter((b) => b.sdk)
+  if (withSdk.length === 0) {
+    checks.push(
+      check(sdkName, 'warn', 'no X-Boly-SDK header — fine for a ParamsCatcher script; the Boly SDK always sends it'),
+    )
+  } else if (withSdk.length < beats.length) {
+    checks.push(check(sdkName, 'warn', `only ${withSdk.length} of ${beats.length} requests sent it`))
+  } else if (!/^[a-z]+\/\d+\.\d+\.\d+/.test(withSdk[0].sdk)) {
+    checks.push(check(sdkName, 'warn', `unexpected format "${withSdk[0].sdk}" (expected e.g. "unity/0.1.0")`))
+  } else {
+    checks.push(check(sdkName, 'pass', withSdk[0].sdk))
+  }
+
   // ≥3 beats arriving proves the validator survived the scene load and keeps a
   // steady cadence. Also guard against a runaway loop hammering the endpoint.
   if (beats.length < 3) {

@@ -14,7 +14,7 @@ header, not quitting on `403`, or quitting on the first network hiccup.
 
 | # | Scenario | Confirms |
 |---|----------|----------|
-| 1 | Valid session | Reads `-game_id`/`-key`, POSTs `{game_id, key}` JSON to `/v1/validate/validate`, `Content-Type: application/json`, **no** `Authorization` header, and keeps heartbeating at a steady cadence (survives the scene load) |
+| 1 | Valid session | Reads `-game_id`/`-key`, POSTs `{game_id, key}` JSON to `/v1/validate/validate`, `Content-Type: application/json`, **no** `Authorization` header, and keeps heartbeating at a steady cadence (survives the scene load). Also reports whether the build sends `X-Boly-SDK` — a `WARN` (not a failure) for ParamsCatcher scripts, which don't |
 | 2 | 403 → quit | The game exits when the server returns `403` (session superseded / access lost) |
 | 3 | Transient tolerated | One `5xx`/network failure does **not** kill the game; it recovers |
 | 4 | Repeated failures → quit | The game exits after ~2 consecutive failures |
@@ -100,11 +100,14 @@ sent:
   PASS  Content-Type: application/json
   PASS  Body is { game_id:<int>, key:"<the -key>" }
   PASS  No Authorization header (key is the credential)
+  PASS  Identifies the SDK (X-Boly-SDK header)
+        unity/0.1.0
   PASS  Heartbeats continue & cadence is steady (persists across scenes)
         sample heartbeat:
           POST /v1/validate/validate
           Content-Type: application/json
           Authorization: (none)
+          X-Boly-SDK: unity/0.1.0
           body: {"game_id":5,"key":"<hex>"}
 ```
 

@@ -37,6 +37,7 @@ function printSampleBeat(beat) {
   console.log(dim(`          POST ${beat.path}`))
   console.log(dim(`          Content-Type: ${beat.contentType || '(none)'}`))
   console.log(dim(`          Authorization: ${beat.hasAuth ? 'PRESENT' : '(none)'}`))
+  console.log(dim(`          X-Boly-SDK: ${beat.sdk || '(none)'}`))
   console.log(dim(`          body: ${beat.rawBody}`))
 }
 

@@ -4,16 +4,24 @@
 // (POST /v1/validate/validate). It records every heartbeat a launched game
 // sends and lets each scenario drive the response (200 / 403 / 500 / dropped
 // connection). Zero dependencies — Node's built-in http only.
+//
+// Like the real API, every 200 state:true reply also carries the session
+// fields the Boly SDK reads (session_id, learner_id, server_time); legacy
+// ParamsCatcher scripts ignore them.
 
 const http = require('http')
+const crypto = require('crypto')
 
 const VALIDATE_PATH = '/v1/validate/validate'
 
 class MockServer {
   constructor() {
     // Every request the game makes, in order. Each entry:
-    // { index, time, method, path, contentType, hasAuth, rawBody, parsed, parseError }
+    // { index, time, method, path, contentType, hasAuth, sdk, rawBody, parsed, parseError }
     this.beats = []
+    // One fake session per launch, as the real API issues per -key.
+    this.sessionId = crypto.randomUUID()
+    this.learnerId = crypto.randomUUID()
     // Decides the response for a given beat. Return one of:
     //   { status, body }        -> normal HTTP reply
     //   { action: 'drop' }      -> destroy the socket (simulate a network error)
@@ -58,6 +66,8 @@ class MockServer {
         path: req.url,
         contentType: req.headers['content-type'] || '',
         hasAuth: req.headers['authorization'] != null,
+        // X-Boly-SDK, e.g. "unity/0.1.0". Absent from legacy ParamsCatcher scripts.
+        sdk: req.headers['x-boly-sdk'] || null,
         rawBody: raw,
         parsed,
         parseError,
@@ -84,12 +94,20 @@ class MockServer {
       }
 
       const status = decision.status || 200
-      const body =
+      let body =
         decision.body != null
           ? decision.body
           : status === 200
             ? { state: true, subscriptionAccess: false }
             : { state: false }
+      if (status === 200 && body.state === true) {
+        body = {
+          session_id: this.sessionId,
+          learner_id: this.learnerId,
+          server_time: new Date().toISOString(),
+          ...body,
+        }
+      }
       try {
         if (!res.writableEnded) {
           res.writeHead(status, { 'Content-Type': 'application/json' })
