@@ -5,6 +5,7 @@ import axios from 'axios'
 import { exec } from 'child_process'
 import extract from 'extract-zip'
 import { WindowManager } from './WindowManager'
+import { removeAchievementManifest } from './buildManifest'
 
 export class InstallerService {
   private static instance: InstallerService
@@ -284,6 +285,11 @@ export class InstallerService {
 
       await extract(zipPath, { dir: stagingRoute })
       this.deleteFile(zipPath)
+
+      // boly/achievements.json is for Boly, not the player (it names hidden
+      // achievements): drop it before the build goes live.
+      const removedManifests = removeAchievementManifest(stagingRoute)
+      if (removedManifests.length > 0) console.log('Removed achievement manifest from the build:', removedManifests)
 
       if (fs.existsSync(destinationRoute)) {
         fs.rmSync(destinationRoute, { recursive: true, force: true })
