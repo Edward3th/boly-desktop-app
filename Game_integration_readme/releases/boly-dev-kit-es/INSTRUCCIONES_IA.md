@@ -17,6 +17,7 @@ del kit. Síguelo en orden.
 | `sdk/unreal/BolySDK/` | SDK para Unreal 5 (plugin C++) |
 | `sdk/gamemaker/` | SDK para GameMaker 2024+ (código GML) |
 | `sdk/BOLY_SDK.md` | Referencia completa del SDK (API de los 4 motores, logros, reglas): **léela antes de empezar** |
+| `LOGROS.md` | Guía paso a paso de logros (boly.cl o `boly/achievements.json` en la build) |
 | `sdk/<motor>/README.md` | Instalación y API de cada motor (resumen) |
 | `boly-verify-win.exe` | Verificador: prueba el build contra un servidor Boly simulado |
 | `index.html` | La misma guía para humanos |
@@ -138,7 +139,9 @@ en consola; Unreal: compila el módulo) antes de seguir.
 
 ## Paso 2b: logros (opcional)
 
-Solo si la persona quiere logros.
+Solo si la persona quiere logros. Lee primero `<KIT>/LOGROS.md`: es la guía
+completa (las dos formas de definirlos, el formato del archivo, cómo probarlos
+y qué pasa al publicar). Lo esencial:
 
 - Los logros los define la persona, de una de dos formas. Pregúntale cuál
   usa; no inventes logros ni `api_name`.

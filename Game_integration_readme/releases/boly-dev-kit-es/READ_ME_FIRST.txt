@@ -19,7 +19,11 @@ BOLY - KIT DE INTEGRACION DE JUEGOS
    La referencia completa del SDK para IA esta en  sdk/BOLY_SDK.md  (copiala
    a tu proyecto para que tu asistente la tenga siempre a mano).
 
-5. No hay que configurar ningun id de juego: Boly lo asigna cuando se crea tu
+5. LOGROS: la guia paso a paso para agregar logros a tu juego esta en
+   LOGROS.md  (definirlos en boly.cl o en un archivo boly/achievements.json
+   dentro de la build, probarlos y publicarlos).
+
+6. No hay que configurar ningun id de juego: Boly lo asigna cuando se crea tu
    juego y el launcher se lo pasa al ejecutable al arrancar.
 
 Dudas? Contacta a tu referente en Boly.

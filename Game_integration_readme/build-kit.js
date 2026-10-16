@@ -60,7 +60,7 @@ fs.rmSync(out, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 }
 fs.rmSync(zip, { force: true })
 fs.mkdirSync(out, { recursive: true })
 
-for (const file of ['index.html', 'boly-logo.png', 'READ_ME_FIRST.txt', 'INSTRUCCIONES_IA.md']) {
+for (const file of ['index.html', 'boly-logo.png', 'READ_ME_FIRST.txt', 'INSTRUCCIONES_IA.md', 'LOGROS.md']) {
   fs.copyFileSync(path.join(here, file), path.join(out, file))
 }
 fs.copyFileSync(verifierExe, path.join(out, 'boly-verify-win.exe'))
