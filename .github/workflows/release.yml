@@ -69,4 +69,4 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
         run: |
-          aws s3 cp "dist_new\boly-${{ needs.check-version.outputs.version }}-setup.exe" "s3://${{ secrets.AWS_S3_BUCKET }}/boly-Setup.exe"
+          aws s3 cp "dist_new\boly-${{ needs.check-version.outputs.version }}-setup.exe" "s3://${{ secrets.AWS_S3_BUCKET }}/boly-Setup.exe" --cache-control no-cache
