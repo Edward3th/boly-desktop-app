@@ -708,7 +708,30 @@ export const es = {
     message: 'Esta cuenta de Boly está siendo utilizada en otro lugar. Has sido desconectado.',
     loginButton: 'Iniciar Sesión Nuevamente',
     closeButton: 'Cerrar Aplicación'
-  }
+  },
+  // LumenAI achievements (game page, public profile)
+  ach_hidden_name: 'Logro oculto',
+  ach_hidden_description: 'Se revela cuando lo consigues.',
+  ach_unlocked: 'Desbloqueado',
+  ach_locked: 'Pendiente',
+  ach_progress_label: 'Progreso {current} de {target}',
+  ach_game_title: 'Logros de {game}',
+  ach_summary: 'Has desbloqueado {unlocked} de {total}.',
+  ach_login_hint: '{total} logros. Inicia sesión para ver tu progreso.',
+  ach_see_my_profile: 'Ver mi perfil',
+  ach_none_yet: 'Este juego todavía no tiene logros.',
+  ach_load_error: 'No se pudieron cargar los logros.',
+  ach_game_not_found: 'No encontramos ese juego.',
+  ach_manage: 'Gestionar logros',
+  profile_public: 'Ver mi perfil público',
+  profile_member_since: 'En Boly desde {date}',
+  profile_achievements_count: 'Logros desbloqueados: {count}',
+  profile_no_games: 'Todavía no tiene logros en ningún juego.',
+  profile_no_games_me: 'Todavía no tienes logros. ¡Juega y aparecerán aquí!',
+  profile_view_game: 'Ver juego',
+  profile_not_found_title: 'Perfil no encontrado',
+  profile_not_found: 'No existe un jugador llamado {username}.',
+  profile_load_error: 'No se pudo cargar el perfil.',
 }
 
 export default es

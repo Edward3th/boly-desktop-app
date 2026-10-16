@@ -155,36 +155,45 @@ export interface GameEducation {
   }[]
 }
 
-export interface Achievement {
-  id: number
-  achievement_code: string
-  name: {
-    en: string
-    es: string
-  }
-  description: {
-    en: string
-    es: string
-  }
-  unlock_requirement: number
-  type: string
-  secret: boolean
-  gameId: number
-  icon_url?: string
-  progress?: number
-  current_progress?: number
+// ─── Achievements (LumenAI phase 1) ─────────────────────────────────────────
+
+// An achievement as anyone sees it. A hidden one the player hasn't unlocked
+// comes with name/description/icon/target/current all null.
+export interface GameAchievement {
+  achievement_id: number
+  hidden: boolean
+  name: LocalizedString | null
+  description: LocalizedString | null
+  icon_url: string | null
+  target: number | null
+  current: number | null
+  unlocked: boolean
+  unlocked_at: string | null
 }
 
-export interface AchievementStoreState {
-  inspectedGame: Partial<Game>
-  achievements: Achievement[]
-  loading: boolean
+export interface GameAchievementsResponse {
+  game_id: number
+  total: number
+  unlocked: number
+  achievements: GameAchievement[]
 }
 
-export type AchievementStore = AchievementStoreState & {
-  fetchAchievements(gameId: number, auth: { token: string }): Promise<void>
-  updateAchievements(auth: { token: string }): Promise<{ message: string; error: string }>
-  fetchUserProgress(gameId: number, auth: { token: string }): Promise<any>
+export interface PublicProfileGame {
+  game_id: number
+  name: LocalizedString
+  banner_url: string | null
+  total: number
+  unlocked: number
+  achievements: GameAchievement[]
+}
+
+export interface PublicProfile {
+  username: string
+  profile_picture_url: string | null
+  bio: string | null
+  member_since: string
+  achievements_unlocked: number
+  games: PublicProfileGame[]
 }
 
 export interface UserUpdateRequest {

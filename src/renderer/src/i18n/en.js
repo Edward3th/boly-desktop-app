@@ -700,7 +700,30 @@ export const en = {
     message: 'This Boly account is being used elsewhere. You have been logged out.',
     loginButton: 'Log In Again',
     closeButton: 'Close App'
-  }
+  },
+  // LumenAI achievements (game page, public profile)
+  ach_hidden_name: 'Hidden achievement',
+  ach_hidden_description: 'Revealed once you earn it.',
+  ach_unlocked: 'Unlocked',
+  ach_locked: 'Locked',
+  ach_progress_label: 'Progress {current} of {target}',
+  ach_game_title: '{game} achievements',
+  ach_summary: 'You\'ve unlocked {unlocked} of {total}.',
+  ach_login_hint: '{total} achievements. Log in to see your progress.',
+  ach_see_my_profile: 'See my profile',
+  ach_none_yet: 'This game doesn\'t have achievements yet.',
+  ach_load_error: 'Couldn\'t load the achievements.',
+  ach_game_not_found: 'We couldn\'t find that game.',
+  ach_manage: 'Manage achievements',
+  profile_public: 'See my public profile',
+  profile_member_since: 'On Boly since {date}',
+  profile_achievements_count: 'Achievements unlocked: {count}',
+  profile_no_games: 'No achievements in any game yet.',
+  profile_no_games_me: 'No achievements yet. Play and they will show up here!',
+  profile_view_game: 'View game',
+  profile_not_found_title: 'Profile not found',
+  profile_not_found: 'There\'s no player called {username}.',
+  profile_load_error: 'Couldn\'t load the profile.',
 }
 
 export default en

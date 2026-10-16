@@ -9,6 +9,7 @@ import BolyIcon from '@/components/icons/FlowerIcon.vue'
 import CreditCardIcon from '@/components/icons/CreditCardIcon.vue'
 import IconDocumentation from '@/components/icons/IconDocumentation.vue'
 import RightArrowIcon from '@/components/icons/RightArrowIcon.vue'
+import TrophyIcon from '@/components/icons/TrophyIcon.vue'
 import WishlistIcon from '@/components/icons/WishlistIcon.vue'
 import GameStatsIcon from '@/components/icons/GameStatsIcon.vue'
 import PercentageIcon from '@/components/icons/PercentageIcon.vue'
@@ -126,6 +127,13 @@ const sendVerification = async () => {
             <div class="button-content">
               <DiagonalPencilIcon class="button-icon" />
               <span>{{ $t('edit_profile') }}</span>
+              <RightArrowIcon class="button-icon arrow-icon" />
+            </div>
+          </RouterLink>
+          <RouterLink v-if="user.username" :to="`/u/${user.username}`" class="button btn-purple">
+            <div class="button-content">
+              <TrophyIcon class="button-icon" />
+              <span>{{ $t('profile_public') }}</span>
               <RightArrowIcon class="button-icon arrow-icon" />
             </div>
           </RouterLink>
@@ -277,6 +285,13 @@ const sendVerification = async () => {
                   <div class="button-content">
                     <DiagonalPencilIcon class="button-icon" />
                     <span>{{ $t('edit_profile') }}</span>
+                    <RightArrowIcon class="button-icon arrow-icon" />
+                  </div>
+                </RouterLink>
+                <RouterLink v-if="user.username" :to="`/u/${user.username}`" class="button btn-purple">
+                  <div class="button-content">
+                    <TrophyIcon class="button-icon" />
+                    <span>{{ $t('profile_public') }}</span>
                     <RightArrowIcon class="button-icon arrow-icon" />
                   </div>
                 </RouterLink>

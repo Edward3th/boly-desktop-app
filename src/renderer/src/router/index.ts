@@ -112,9 +112,14 @@ export const router = createRouter({
       component: () => import('../views/AchievementsPassView.vue')
     },
     {
+      // Achievements are edited on boly.cl; the app shows them read-only.
       path: '/developer/:game/achievements',
-      name: 'manage-achievements',
-      component: () => import('../views/AchievementManagerView.vue')
+      redirect: (to) => `/games/${to.params.game}/achievements`
+    },
+    {
+      path: '/u/:username',
+      name: 'public-profile',
+      component: () => import('../views/PublicProfileView.vue')
     },
     {
       path: '/developer/:game/edit',

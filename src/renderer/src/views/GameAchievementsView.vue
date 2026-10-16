@@ -1,300 +1,141 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useAuth, useAchievements, useGames, useUser } from '@/stores'
-import type { Achievement, Game } from '@/types'
+import axios from 'axios'
+import { useAuth, useAchievements, useUser } from '@/stores'
+import type { GameAchievementsResponse, LocalizedString } from '@/types'
+import AchievementItem from '@/components/achievements/AchievementItem.vue'
 import SkeletonList from '@/components/skeletons/SkeletonList.vue'
 
+// A game's achievements. Anyone can look; a logged-in player also sees their
+// own progress and the hidden achievements they've unlocked.
 const route = useRoute()
-const { locale } = useI18n()
-const achievementsStore = useAchievements()
-const authStore = useAuth()
+const router = useRouter()
+const { t, locale } = useI18n()
+const auth = useAuth()
 const user = useUser()
-const gamesStore = useGames()
+const achievementsStore = useAchievements()
 
+const gameId = computed(() => Number(route.params.id))
+const gameName = ref('')
+const data = ref<GameAchievementsResponse | null>(null)
+const isLoading = ref(true)
 const error = ref<string | null>(null)
-const game = ref<Game | null>(null)
 
-const gameId = computed(() => {
-  const id = route.params.id
-  return id ? Number(id) : null
-})
+const localized = (value: LocalizedString | null | undefined) =>
+  value ? value[locale.value] || value.es || value.en || '' : ''
 
-const loading = computed(() => achievementsStore.loading || gamesStore.loading)
-const achievements = computed<Achievement[]>(() => achievementsStore.achievements)
-
-const gameTitle = computed(() => {
-  if (game.value?.name) {
-    const name = game.value.name as { [key: string]: string }
-    return name[locale.value] || name.en || ''
-  }
-
-  if (achievementsStore.inspectedGame.name) {
-    const name = achievementsStore.inspectedGame.name as { [key: string]: string }
-    return name[locale.value] || name.en || ''
-  }
-
-  return ''
-})
-
-function getAchievementName(achievement: Achievement): string {
-  if (!achievement.name) return ''
-  return (
-    (locale.value in achievement.name
-      ? achievement.name[locale.value as keyof typeof achievement.name]
-      : achievement.name.en) || ''
-  )
-}
-
-function getAchievementDescription(achievement: Achievement): string {
-  if (!achievement.description) return ''
-  return (
-    (locale.value in achievement.description
-      ? achievement.description[locale.value as keyof typeof achievement.description]
-      : achievement.description.en) || ''
-  )
-}
-
-async function fetchGameData() {
-  if (!gameId.value) return
-
-  try {
-    const fetchedGame = await gamesStore.getById(gameId.value)
-    if (fetchedGame) {
-      game.value = fetchedGame
-    }
-  } catch (err) {
-    console.error('Failed to fetch game data:', err)
-  }
-}
-
-async function fetchAchievementsData() {
+async function load() {
+  isLoading.value = true
   error.value = null
-  if (!gameId.value) {
-    error.value = 'Invalid game ID'
-    return
-  }
-
-  if (!authStore.token) {
-    error.value = 'Authentication required'
-    return
-  }
-
   try {
-    await achievementsStore.fetchAchievements(gameId.value, { token: authStore.token })
-    if (user.userId) {
-      await achievementsStore.fetchUserProgress(user.userId, { token: authStore.token })
-    }
-  } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to fetch achievements'
+    const [game, achievements] = await Promise.all([
+      axios.get(`/v1/games/${gameId.value}`),
+      achievementsStore.fetchGameAchievements(gameId.value)
+    ])
+    gameName.value = localized(game.data.name)
+    data.value = achievements
+  } catch (e: any) {
+    console.error('Error loading achievements:', e)
+    error.value = e.response?.status === 404 ? t('ach_game_not_found') : t('ach_load_error')
+  } finally {
+    isLoading.value = false
   }
 }
 
-function retryFetch() {
-  fetchGameData()
-  fetchAchievementsData()
-}
-
-onMounted(() => {
-  fetchGameData()
-  fetchAchievementsData()
-})
-
-watch(
-  () => gameId.value,
-  () => {
-    fetchGameData()
-    fetchAchievementsData()
-  }
-)
+onMounted(load)
+watch(gameId, load)
 </script>
 
 <template>
-  <div class="achievements-container">
-    <h1 class="title-bold">{{ gameTitle.toUpperCase() }} {{ $t('achievements').toUpperCase() }}</h1>
+  <div class="ach-page">
+    <button type="button" class="back-link" @click="router.back()">← {{ t('back') }}</button>
 
-    <SkeletonList v-if="loading" :rows="5" rowHeight="64px" />
+    <header class="ach-header">
+      <h1 class="ach-title">{{ t('ach_game_title', { game: gameName }) }}</h1>
+      <p v-if="data && auth.isLoggedIn" class="summary">
+        {{ t('ach_summary', { unlocked: data.unlocked, total: data.total }) }}
+        <RouterLink v-if="user.username" :to="`/u/${user.username}`" class="profile-link">
+          {{ t('ach_see_my_profile') }} →
+        </RouterLink>
+      </p>
+      <p v-else-if="data" class="summary">{{ t('ach_login_hint', { total: data.total }) }}</p>
+    </header>
 
-    <div v-else-if="error" class="error-message">
+    <SkeletonList v-if="isLoading" :rows="5" row-height="80px" />
+
+    <div v-else-if="error" class="error" role="alert">
       <p>{{ error }}</p>
-      <button class="retry-button" @click="retryFetch">{{ $t('retry') }}</button>
+      <button type="button" class="button btn-blue" @click="load">{{ t('retry') }}</button>
     </div>
 
-    <div v-else-if="achievements.length === 0" class="no-achievements">
-      {{ $t('no_achievements_found') }}
-    </div>
+    <p v-else-if="data && data.achievements.length === 0" class="empty">{{ t('ach_none_yet') }}</p>
 
-    <div v-else class="achievements-list">
-      <div v-for="achievement in achievements" :key="achievement.id" class="achievement-item">
-        <div class="achievement-icon">
-          <img
-            :src="achievement.icon_url || '/images/default-achievement.png'"
-            :alt="getAchievementName(achievement)"
-          />
-        </div>
-        <div class="achievement-content">
-          <h3 class="achievement-title">
-            {{ getAchievementName(achievement) }}
-            <span v-if="achievement.secret" class="secret-badge">{{ $t('secret') }}</span>
-          </h3>
-          <p class="achievement-description">
-            {{ getAchievementDescription(achievement) }}
-          </p>
-          <div v-if="typeof achievement.progress === 'number'" class="progress-container">
-            <div class="progress-bar">
-              <div
-                class="progress-fill"
-                :style="{
-                  width: `${((achievement.current_progress || 0) / achievement.progress) * 100}%`
-                }"
-              ></div>
-            </div>
-            <span class="progress-text"
-              >{{ achievement.current_progress || 0 }}/{{ achievement.progress }}</span
-            >
-          </div>
-        </div>
-      </div>
+    <div v-else-if="data" class="list">
+      <AchievementItem v-for="a in data.achievements" :key="a.achievement_id" :achievement="a" />
     </div>
   </div>
 </template>
 
 <style scoped>
-.achievements-container {
-  max-width: 1200px;
+.ach-page {
+  max-width: 860px;
   margin: 0 auto;
-  padding: 1rem;
-  position: relative;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+  color: var(--light);
 }
 
-.error-message {
-  text-align: center;
-  color: #e74c3c;
-  padding: 2rem;
-}
-
-.retry-button {
-  background-color: #3498db;
-  color: white;
+.back-link {
+  align-self: flex-start;
   border: none;
-  border-radius: 4px;
-  padding: 8px 16px;
+  background: transparent;
+  color: var(--boly-button-light-blue);
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.9rem;
   cursor: pointer;
-  margin-top: 1rem;
-  font-weight: bold;
+  padding: 0.25rem 0;
 }
 
-.retry-button:hover {
-  background-color: #2980b9;
+.back-link:hover {
+  text-decoration: underline;
 }
 
-.no-achievements {
-  text-align: center;
-  padding: 2rem;
-  font-size: 1.2rem;
-  color: #666;
-}
-
-.achievements-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  width: 80%;
-  margin: 0 auto; /* This centers the list */
-}
-
-.achievement-item {
-  display: flex;
-  border: 1px solid #221742;
-  border-radius: 8px;
-  padding: 1rem;
-  background-color: #221742;
-  width: 100%;
-}
-
-.achievement-icon {
-  position: relative;
-  width: 64px;
-  height: 64px;
-  margin-right: 1rem;
-  flex-shrink: 0;
-}
-
-.achievement-icon img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 4px;
-}
-
-.achievement-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.achievement-title {
-  font-size: 1.2rem;
-  margin-top: 0;
-  margin-bottom: 0.5rem;
-  display: flex;
-  align-items: center;
-  color: white;
-}
-
-.achievement-description {
+.ach-title {
+  color: var(--light);
+  font-family: 'Anton', Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
+  font-style: italic;
+  font-size: clamp(1.5rem, 4vw, 2rem);
   margin: 0;
-  color: #ffffffc4;
-  font-size: 0.95rem;
-  margin-bottom: 0.75rem;
 }
 
-.progress-container {
+.summary {
+  margin: 0.35rem 0 0;
+  font-family: 'Poppins', sans-serif;
+  color: var(--light-gray);
+  font-size: 0.9rem;
+}
+
+.profile-link {
+  margin-left: 0.75rem;
+  color: var(--boly-button-light-blue);
+}
+
+.list {
   display: flex;
-  align-items: center;
-  margin-top: 0.5rem;
+  flex-direction: column;
+  gap: 0.6rem;
 }
 
-.progress-bar {
-  flex: 1;
-  height: 8px;
-  background-color: #e0e0e0;
-  border-radius: 4px;
-  overflow: hidden;
-  margin-right: 10px;
-}
-
-.progress-fill {
-  height: 100%;
-  background-color: #3498db;
-  transition: width 0.3s ease;
-}
-
-.progress-text {
-  font-size: 0.8rem;
-  font-weight: bold;
-  color: #666;
-  width: 40px;
-  text-align: right;
-}
-
-.secret-badge {
-  font-size: 0.7rem;
-  background-color: #e74c3c;
-  color: white;
-  padding: 2px 6px;
-  border-radius: 4px;
-  margin-left: 0.5rem;
-}
-
-.title-bold {
-  width: 100%;
-  text-align: left;
-  font-size: 300%;
-  padding-left: 2rem;
-  margin-bottom: 2rem;
-  position: relative;
-  left: 0;
+.empty,
+.error {
+  font-family: 'Poppins', sans-serif;
+  color: var(--light-gray);
+  text-align: center;
+  padding: 2rem 0;
 }
 </style>

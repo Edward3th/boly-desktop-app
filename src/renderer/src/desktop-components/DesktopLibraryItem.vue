@@ -4,7 +4,7 @@ import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuth, useAchievements, useGames } from '@/stores'
 import useGameRoutes from '@/desktop-stores/gameRoutes'
-import type { Game, Achievement, LocalizedString } from '@/types'
+import type { Game, GameAchievement, LocalizedString } from '@/types'
 import PlayIcon from '@/components/icons/PlayIcon.vue'
 import LoadingSpinnerIcon from '@/components/icons/LoadingSpinnerIcon.vue'
 import DownloadIcon from '@/components/icons/DownloadIcon.vue'
@@ -31,7 +31,7 @@ const isLoading = ref(false)
 const isDownloading = ref(false)
 const isInstalling = ref(false)
 const isRunning = ref(false)
-const gameAchievements = ref<Achievement[]>([])
+const gameAchievements = ref<GameAchievement[]>([])
 const achievementsLoading = ref(true)
 const playTime = ref<number | null>(null)
 const playTimeLoading = ref(true)
@@ -158,8 +158,9 @@ async function fetchGameAchievements() {
 
   achievementsLoading.value = true
   try {
-    await achievementsStore.fetchAchievements(props.item.game_id, { token: auth.token })
-    gameAchievements.value = [...achievementsStore.achievements]
+    const result = await achievementsStore.fetchGameAchievements(props.item.game_id)
+    // Unlocked ones first: they're the player's trophies on this row.
+    gameAchievements.value = [...result.achievements].sort((a, b) => Number(b.unlocked) - Number(a.unlocked))
   } catch (error) {
     console.error('Error fetching achievements:', error)
   } finally {
@@ -477,15 +478,18 @@ async function Download() {
         <span class="stat" :aria-label="$t('achievements')">
           <span v-if="achievementsLoading" class="stat-muted">…</span>
           <template v-else-if="hasAchievements">
-            <span v-for="achievement in displayedAchievements" :key="achievement.id" class="achievement">
+            <span class="stat-muted">{{ gameAchievements.filter((a) => a.unlocked).length }}/{{ gameAchievements.length }}</span>
+            <span v-for="achievement in displayedAchievements" :key="achievement.achievement_id" class="achievement">
               <img
+                v-if="achievement.icon_url"
                 :src="achievement.icon_url"
-                :alt="localized(achievement.name)"
-                :class="{ locked: achievement.progress !== undefined && achievement.progress < 100 }"
+                :alt="localized(achievement.name) || $t('ach_hidden_name')"
+                :class="{ locked: !achievement.unlocked }"
               />
+              <span v-else class="achievement-placeholder" :class="{ locked: !achievement.unlocked }" aria-hidden="true">★</span>
               <span class="achievement-tooltip" role="tooltip">
-                <strong>{{ localized(achievement.name) }}</strong>
-                <span>{{ localized(achievement.description) }}</span>
+                <strong>{{ localized(achievement.name) || $t('ach_hidden_name') }}</strong>
+                <span>{{ localized(achievement.description) || (achievement.name ? '' : $t('ach_hidden_description')) }}</span>
               </span>
             </span>
             <span v-if="gameAchievements.length > displayedAchievements.length" class="stat-muted">
@@ -679,6 +683,18 @@ async function Download() {
   display: block;
 }
 
+.achievement-placeholder {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  display: grid;
+  place-items: center;
+  font-size: 0.8rem;
+  color: var(--boly-highlight);
+  background: rgba(251, 251, 251, 0.08);
+}
+
+.achievement-placeholder.locked,
 .achievement img.locked {
   filter: grayscale(100%);
   opacity: 0.55;

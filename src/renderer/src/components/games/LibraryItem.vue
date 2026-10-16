@@ -3,7 +3,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAuth, useAchievements } from '@/stores'
-import type { Game, Achievement } from '@/types'
+import type { Game, GameAchievement, LocalizedString } from '@/types'
 import PlayIcon from '@/components/icons/PlayIcon.vue'
 import DownloadIcon from '@/components/icons/DownloadIcon.vue'
 
@@ -17,7 +17,10 @@ const router = useRouter()
 const auth = useAuth()
 const achievementsStore = useAchievements()
 const isLoading = ref(false)
-const gameAchievements = ref<Achievement[]>([])
+const gameAchievements = ref<GameAchievement[]>([])
+
+const localized = (value: LocalizedString | null | undefined) =>
+  value?.[i18n.locale.value] || value?.es || value?.en || ''
 const achievementsLoading = ref(true)
 
 console.log('LibraryItem received game:', props.item)
@@ -34,9 +37,7 @@ const gameCompletionPercentage = computed(() => {
   if (!gameAchievements.value.length) return 0
 
   const totalAchievements = gameAchievements.value.length
-  const completedAchievements = gameAchievements.value.filter(
-    (a) => a.progress === 100 || a.progress === undefined
-  ).length
+  const completedAchievements = gameAchievements.value.filter((a) => a.unlocked).length
 
   return Math.floor((completedAchievements / totalAchievements) * 100)
 })
@@ -46,8 +47,9 @@ async function fetchGameAchievements() {
 
   achievementsLoading.value = true
   try {
-    await achievementsStore.fetchAchievements(props.item.game_id, { token: auth.token })
-    gameAchievements.value = [...achievementsStore.achievements]
+    const result = await achievementsStore.fetchGameAchievements(props.item.game_id)
+    // Unlocked ones first: they're the player's trophies on this row.
+    gameAchievements.value = [...result.achievements].sort((a, b) => Number(b.unlocked) - Number(a.unlocked))
   } catch (error) {
     console.error('Error fetching achievements:', error)
   } finally {
@@ -132,28 +134,27 @@ function navigateToGameDetails() {
           <div v-else-if="hasAchievements" class="achievements-icons">
             <div
               v-for="achievement in displayedAchievements"
-              :key="achievement.id"
+              :key="achievement.achievement_id"
               class="achievement-icon-wrapper"
             >
               <div class="achievement-tooltip">
-                <strong>{{ achievement.name }}</strong>
-                <p>{{ achievement.description }}</p>
+                <strong>{{ localized(achievement.name) || $t('ach_hidden_name') }}</strong>
+                <p>{{ localized(achievement.description) || (achievement.name ? '' : $t('ach_hidden_description')) }}</p>
               </div>
               <div class="achievement-frame">
                 <img
+                  v-if="achievement.icon_url"
                   :src="achievement.icon_url"
-                  :class="{
-                    'achievement-icon': true,
-                    locked: achievement.progress !== undefined && achievement.progress < 100
-                  }"
+                  :class="{ 'achievement-icon': true, locked: !achievement.unlocked }"
                   alt="Achievement Icon"
                 />
+                <span v-else :class="{ 'achievement-icon': true, locked: !achievement.unlocked }" aria-hidden="true">★</span>
               </div>
               <div
-                v-if="achievement.progress !== 100 && achievement.progress !== undefined"
+                v-if="!achievement.unlocked && (achievement.target ?? 1) > 1 && achievement.current !== null"
                 class="achievement-progress"
               >
-                <div class="progress-bar" :style="{ width: `${achievement.progress}%` }"></div>
+                <div class="progress-bar" :style="{ width: `${Math.round(((achievement.current ?? 0) / (achievement.target ?? 1)) * 100)}%` }"></div>
               </div>
             </div>
           </div>
