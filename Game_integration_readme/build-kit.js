@@ -68,6 +68,7 @@ fs.copyFileSync(verifierExe, path.join(out, 'boly-verify-win.exe'))
 for (const engine of ENGINES) {
   fs.cpSync(path.join(sdkRoot, engine), path.join(out, 'sdk', engine), { recursive: true })
 }
+fs.copyFileSync(path.join(sdkRoot, 'BOLY_SDK.md'), path.join(out, 'sdk', 'BOLY_SDK.md'))
 fs.writeFileSync(path.join(out, 'sdk', 'VERSION.txt'), `boly-sdk ${sdkCommit}\r\n`)
 
 // Windows' bundled tar (bsdtar) writes a proper zip (forward-slash paths,

@@ -16,6 +16,8 @@ BOLY - KIT DE INTEGRACION DE JUEGOS
 4. Si usas un asistente de IA (Claude Code, Cursor, etc.), abrelo en la
    carpeta de tu juego y pidele que lea y siga  INSTRUCCIONES_IA.md  de este
    kit: integra el SDK, compila y prueba el build con el verificador.
+   La referencia completa del SDK para IA esta en  sdk/BOLY_SDK.md  (copiala
+   a tu proyecto para que tu asistente la tenga siempre a mano).
 
 5. No hay que configurar ningun id de juego: Boly lo asigna cuando se crea tu
    juego y el launcher se lo pasa al ejecutable al arrancar.

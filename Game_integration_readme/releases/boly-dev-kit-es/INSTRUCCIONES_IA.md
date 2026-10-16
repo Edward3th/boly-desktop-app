@@ -16,7 +16,8 @@ del kit. Síguelo en orden.
 | `sdk/godot/addons/boly_sdk/` | SDK para Godot 4 (addon) |
 | `sdk/unreal/BolySDK/` | SDK para Unreal 5 (plugin C++) |
 | `sdk/gamemaker/` | SDK para GameMaker 2024+ (código GML) |
-| `sdk/<motor>/README.md` | Instalación y API de cada motor: **léelo antes de empezar** |
+| `sdk/BOLY_SDK.md` | Referencia completa del SDK (API de los 4 motores, logros, reglas): **léela antes de empezar** |
+| `sdk/<motor>/README.md` | Instalación y API de cada motor (resumen) |
 | `boly-verify-win.exe` | Verificador: prueba el build contra un servidor Boly simulado |
 | `index.html` | La misma guía para humanos |
 
@@ -106,6 +107,14 @@ primera escena y sobrevive a los cambios de escena. Dentro del editor, sin
 
 Si no puedes crear assets de GameMaker editando los archivos `.yy`/`.yyp` con
 seguridad, deja el código listo y pide a la persona que haga estos pasos en el IDE.
+
+### En todos los motores
+
+Copia también `<KIT>/sdk/BOLY_SDK.md` a `docs/BOLY_SDK.md` del proyecto (crea
+`docs/` si no existe). Si el proyecto tiene un archivo de instrucciones para
+asistentes (`CLAUDE.md`, `AGENTS.md`, `.cursorrules`…), pregunta a la persona
+si quiere agregar la línea que sugiere el inicio de `BOLY_SDK.md`, para que
+futuras sesiones de IA respeten la integración.
 
 ## Paso 2: conectar el juego al SDK
 
