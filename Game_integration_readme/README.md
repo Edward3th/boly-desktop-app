@@ -7,9 +7,9 @@
 
 Two tracks, depending on what you built:
 
-- **Downloadable (.exe)** — a native Windows build. Needs the license heartbeat
-  below (Part 1–3), because the game is a standalone process the platform has
-  to keep talking to.
+- **Downloadable (.exe)** — a native Windows build. Needs the **Boly SDK**
+  (which runs the license heartbeat below, Part 1–3), because the game is a
+  standalone process the platform has to keep talking to.
 - **Browser-style (Unity WebGL / Godot HTML5 / a plain web build)** — anything
   whose export is an `index.html`. See **[Part 0](#part-0--publishing-a-browser-style-game)**
   just below: no heartbeat, no script to integrate, three steps total.
@@ -20,7 +20,7 @@ Two tracks, depending on what you built:
 
 Applies to a Unity WebGL export, a Godot HTML5 export, or any other build whose
 output is an `index.html` plus its assets. Nothing from this kit gets added to
-the game's own source — no ParamsCatcher script, no license heartbeat, no
+the game's own source — no Boly SDK, no license heartbeat, no
 verifier. The build runs inside Boly's own player, which controls access on
 its own.
 
@@ -61,17 +61,24 @@ its own.
 
 ## Downloadable games: the license heartbeat
 
-### The script for your engine
+### The Boly SDK for your engine
 
-| Engine | File | Save as |
-|---|---|---|
-| Unity | [`ParamsCatcherUNITY.md`](./scripts/ParamsCatcherUNITY.md) | `ParamsCatcher.cs` |
-| Godot | [`ParamsCatcherGODOT.md`](./scripts/ParamsCatcherGODOT.md) | `ParamsCatcher.gd` |
-| Unreal | [`ParamsCatcherUNREAL.h.md`](./scripts/ParamsCatcherUNREAL.h.md) + [`ParamsCatcherUNREAL.cpp.md`](./scripts/ParamsCatcherUNREAL.cpp.md) | `ValidationSubsystem.h` / `.cpp` |
-| GameMaker | [`ParamsCatcherGAMEMAKER.md`](./scripts/ParamsCatcherGAMEMAKER.md) | two event blocks in a `Persistent` `obj_params_catcher` |
+New games integrate the **Boly SDK** — one package per engine that implements
+the whole heartbeat contract below (plus the session data LumenAI builds on).
+Its source of truth is the private repo
+[`Edward3th/boly-sdk`](https://github.com/Edward3th/boly-sdk); the kit ships a
+copy in `sdk/` (see [Building the kit](#building-the-kit)).
 
-Scene/room setup for each engine is in
-[`GUIA_PARAMS_CATCHER.md`](./scripts/GUIA_PARAMS_CATCHER.md).
+| Engine | In the kit | Goes to | Status |
+|---|---|---|---|
+| Unity 2021.3+ | `sdk/unity/cl.boly.sdk` | `Packages/cl.boly.sdk` | 0.2.0, with achievements. Verified (build passes all 6 verifier scenarios) |
+| Godot 4 | `sdk/godot/addons/boly_sdk` | `res://addons/boly_sdk` + enable the plugin | 0.1.0 (no achievements yet). New, not yet run in the engine |
+| Unreal 5 | `sdk/unreal/BolySDK` | `Plugins/BolySDK` | 0.1.0 (no achievements yet). New, not yet compiled |
+| GameMaker 2024+ | `sdk/gamemaker/` | script `boly_sdk` + persistent `obj_boly` in the first room | 0.1.0 (no achievements yet). New, not yet run in the engine |
+
+Each engine folder has a `README.md` with setup and API. The old per-engine
+`ParamsCatcher` scripts are in [`legacy-paramscatcher/`](./legacy-paramscatcher/)
+for reference only — **new games must not use them**.
 
 ---
 
@@ -130,20 +137,20 @@ lapsed. The game **must exit** in that case.
 
 Old games still run today (the desktop app keeps sending `-token`), but they
 don't heartbeat. To give a shipped game single-session + offline-expiry, rebuild
-it with the script in this folder.
+it with the Boly SDK.
 
 1. **Open the game project** in its engine.
-2. **Replace** the old `ParamsCatcher` script/actor with the matching file from
-   this folder (see the table at the top).
-3. **Leave `gameId` at `0`.** The launcher sends the real id as `-game_id` at
-   runtime.
-4. **Remove any remaining dependency on `-token`.** The new script does not read
-   it, send it, or set an `Authorization` header — confirm nothing else does.
-5. **Confirm the heartbeat object runs first and persists.** It must exist in the
-   first loaded scene/level and survive scene loads (Unity: `DontDestroyOnLoad`;
-   Godot: autoload / persistent node; Unreal: an actor not destroyed on level
-   change; GameMaker: a `Persistent` object + a global time source). See
-   [`GUIA_PARAMS_CATCHER.md`](./scripts/GUIA_PARAMS_CATCHER.md).
+2. **Remove** the old `ParamsCatcher` script/actor (or `ValidationSubsystem`,
+   `obj_params_catcher`) and **add the Boly SDK** for the engine (see the table
+   at the top; each engine's `README.md` has a "migrate from ParamsCatcher"
+   section, including how to keep an AuthScene → MainGame flow).
+3. **No game id to set.** The SDK reads `-game_id` at runtime.
+4. **Remove any remaining dependency on `-token`.** The SDK does not read it,
+   send it, or set an `Authorization` header — confirm nothing else does.
+5. **Start gameplay on the SDK's ready signal** (`OnReady` / `session_ready` /
+   `boly_on_ready`). The SDK bootstraps itself before the first scene and
+   survives scene/level/room changes (GameMaker: `obj_boly` must be in the first
+   room).
 6. **Build the executable** for the target platform(s).
 7. **Test** (see [Testing](#testing-a-build)) — verify it launches, loads the
    game, heartbeats every ~60 s, and **quits** when a second machine launches the
@@ -205,20 +212,17 @@ alone, remove the token:
 
 ---
 
-## Part 3 — Integrate the heartbeat in a NEW game
+## Part 3 — Integrate the Boly SDK in a NEW game
 
 0. **Register your Boly developer account.** Sign up at
    [boly.cl](https://boly.cl) using the **email Boly pre-approved for you** — this
    automatically creates you as a Developer account linked to your studio (no
    separate "developer request" step needed).
-1. Copy the script for your engine from the `scripts/` folder into the game project:
-   - Unity → [`ParamsCatcherUNITY.md`](./scripts/ParamsCatcherUNITY.md) (save as `ParamsCatcher.cs`)
-   - Godot → [`ParamsCatcherGODOT.md`](./scripts/ParamsCatcherGODOT.md) (save as `ParamsCatcher.gd`)
-   - Unreal → [`ParamsCatcherUNREAL.h.md`](./scripts/ParamsCatcherUNREAL.h.md) + [`ParamsCatcherUNREAL.cpp.md`](./scripts/ParamsCatcherUNREAL.cpp.md) (save as `ValidationSubsystem.h` / `.cpp`)
-   - GameMaker → [`ParamsCatcherGAMEMAKER.md`](./scripts/ParamsCatcherGAMEMAKER.md) (paste the Create + Async&nbsp;HTTP event blocks into a `Persistent` `obj_params_catcher`)
-2. Leave `gameId` at `0` — the launcher sends it as `-game_id` at runtime.
-3. Wire up the scene/build setup per [`GUIA_PARAMS_CATCHER.md`](./scripts/GUIA_PARAMS_CATCHER.md)
-   so the validator runs in the first scene and persists across scene loads.
+1. Add the Boly SDK for your engine from the kit's `sdk/` folder (see the table
+   at the top). Nothing goes in a scene except GameMaker's `obj_boly`.
+2. No game id to set — the SDK reads `-game_id` at runtime.
+3. Start gameplay when the SDK is ready (`OnReady` / `session_ready` /
+   `boly_on_ready`) and save progress on its session-ended signal.
 4. Build and test (see below).
 5. **Publish the game and upload your build on the dev dashboard.** Log in at
    boly.cl, go to your **Developer Dashboard → Publish a new game**
@@ -237,7 +241,7 @@ alone, remove the token:
    upload the banner, screenshots and videos there. Do this before approval so the
    store page looks finished the moment it goes live.
 
-### Contract the script must follow (already implemented in the provided files)
+### Contract the SDK follows (full spec: boly-sdk `spec/PROTOCOL.md`)
 - Read `-game_id` and `-key`; **do not** read or require `-token`.
 - POST `{ game_id, key }` to the heartbeat URL with **no** `Authorization` header.
 - Heartbeat every ~60 s; on first success enter gameplay; on `403` / repeated
@@ -272,8 +276,8 @@ node verify.js --game "C:\path\to\YourGame.exe" --game-id 0
 
 `--game-id` can be any non-negative integer — the local mock ignores its value.
 
-It relies on two **test-only** command-line overrides the scripts in this folder
-now accept (the production launcher never sends them, so production behavior is
+It relies on two **test-only** command-line overrides the Boly SDK (and the
+legacy ParamsCatcher scripts) accept (the production launcher never sends them, so production behavior is
 unchanged):
 
 | Override | Default | Purpose |
@@ -297,5 +301,33 @@ owns it (or has an active subscription) and launch it. Watch the game's log:
 returns `{ "tempKey": "..." }`. Then run the build with
 `-game_id <id> -key <tempKey>` and watch it heartbeat.
 
-> Note: in the Unity **editor**, `Application.Quit()` does nothing — test quit
-> behavior in an actual build.
+> Note: in the **editor** the SDK skips Boly entirely (it becomes ready without
+> any request), so test session behavior in an actual build.
+
+---
+
+## Building the kit
+
+What studios receive is `releases/boly-dev-kit-es/` (and its zip): this guide,
+the verifier binary and a copy of the Boly SDK. Rebuild it whenever the guide,
+the verifier or the SDK changes:
+
+1. Build the verifier binary (from `verifier/`):
+   ```bash
+   npx -y pkg@5.8.1 verify.js --targets node18-win-x64 --out-path dist
+   mv -f dist/verify.exe dist/boly-verify-win.exe
+   ```
+2. With a clean, up-to-date checkout of `boly-sdk` next to this repo (or pass
+   `--sdk <path>`):
+   ```bash
+   node build-kit.js
+   ```
+
+The kit's [`INSTRUCCIONES_IA.md`](./INSTRUCCIONES_IA.md) is the playbook a
+studio's AI assistant follows to integrate the SDK, build and run the verifier;
+keep it in sync with the guide.
+
+It recreates `releases/boly-dev-kit-es/` (with `sdk/VERSION.txt` naming the
+boly-sdk commit it copied) and writes `releases/boly-dev-kit-es.zip` — send
+that zip to studios. It refuses to run if the SDK checkout has uncommitted
+changes.

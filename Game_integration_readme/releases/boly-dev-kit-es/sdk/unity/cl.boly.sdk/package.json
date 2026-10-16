@@ -1,0 +1,22 @@
+{
+  "name": "cl.boly.sdk",
+  "version": "0.1.0",
+  "displayName": "Boly SDK",
+  "description": "Licencia (heartbeat) y LumenAI para juegos publicados en Boly. Reemplaza al ParamsCatcher.",
+  "unity": "2021.3",
+  "documentationUrl": "https://boly.cl",
+  "dependencies": {
+    "com.unity.modules.jsonserialize": "1.0.0",
+    "com.unity.modules.unitywebrequest": "1.0.0"
+  },
+  "author": {
+    "name": "Boly",
+    "url": "https://boly.cl"
+  },
+  "keywords": [
+    "boly",
+    "lumenai",
+    "license",
+    "heartbeat"
+  ]
+}

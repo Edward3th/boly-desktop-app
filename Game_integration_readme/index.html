@@ -172,6 +172,8 @@
     font-weight:600;padding:2px 8px;border-radius:6px;margin-right:6px}
   .badge.fail{background:#ff41361f;color:#ff8a82;border:1px solid #ff413655}
   .badge.pass{background:#7dcb271f;color:#aef061;border:1px solid #7dcb2755}
+  .sub-head{margin:22px 0 6px;font-size:15px;color:#fff}
+  .badge.warn{background:#fc99041f;color:#ffc46b;border:1px solid #fc990455}
 
   /* ---------- Finish banner ---------- */
   .finish{display:none;text-align:center;padding:34px 24px;border-radius:20px;margin-top:26px;
@@ -204,11 +206,11 @@
     <span class="tag"><span data-lang="en">Developer Onboarding</span><span data-lang="es">Onboarding para Desarrolladores</span></span>
     <h1><span data-lang="en">Integrate your game<br>with Boly</span><span data-lang="es">Integra tu juego<br>con Boly</span></h1>
     <p data-lang="en">Two kinds of game, two tracks below. A downloadable Windows game adds the
-       license heartbeat and proves it works before you send us a build. A browser-style game
+       Boly SDK and proves it works before you send us a build. A browser-style game
        (Unity WebGL, Godot HTML5, a plain web build) skips all of that — just export, zip and
        upload. Tick each step as you go; your progress is saved in this browser.</p>
     <p data-lang="es">Dos tipos de juego, dos vías abajo. Un juego de Windows descargable agrega el
-       heartbeat de licencia y comprueba que funciona antes de enviarnos un build. Un juego
+       SDK de Boly y comprueba que funciona antes de enviarnos un build. Un juego
        tipo navegador (Unity WebGL, Godot HTML5, un build web plano) se salta todo eso: solo
        exporta, comprime y sube. Marca cada paso a medida que avanzas; tu progreso se guarda
        en este navegador.</p>
@@ -228,10 +230,10 @@
           </button>
         </div>
         <div class="hint" data-lang="en">A browser-style game runs inside the Boly app's own player — no
-           heartbeat script, no verifier. If your export makes an <span class="gid">index.html</span>,
+           SDK, no verifier. If your export makes an <span class="gid">index.html</span>,
            you're on the right track.</div>
         <div class="hint" data-lang="es">Un juego tipo navegador corre dentro del reproductor propio de la
-           app de Boly: sin script de heartbeat, sin verificador. Si tu export genera un
+           app de Boly: sin SDK, sin verificador. Si tu export genera un
            <span class="gid">index.html</span>, esta es tu vía.</div>
       </div>
     </div>
@@ -279,8 +281,8 @@
     <ul style="margin-left:18px;color:var(--text-dim)">
       <li data-lang="en"><b>This guide</b> (the folder you received).</li>
       <li data-lang="es"><b>Esta guía</b> (la carpeta que recibiste).</li>
-      <li data-lang="en">The <b>ParamsCatcher</b> script for your engine — the heartbeat code you'll add.</li>
-      <li data-lang="es">El script <b>ParamsCatcher</b> para tu motor: el código de heartbeat que vas a agregar.</li>
+      <li data-lang="en">The <b>Boly SDK</b> for your engine, in the <b>sdk/</b> folder — it handles the license session for you.</li>
+      <li data-lang="es">El <b>SDK de Boly</b> para tu motor, en la carpeta <b>sdk/</b>: se encarga de la sesión de licencia por ti.</li>
       <li data-lang="en"><b>boly-verify-win.exe</b> — the verifier that tests your build (run it from this folder).</li>
       <li data-lang="es"><b>boly-verify-win.exe</b>: el verificador que prueba tu build (ejecútalo desde esta carpeta).</li>
     </ul>
@@ -291,8 +293,8 @@
     <ul style="margin-left:18px;color:var(--text-dim)">
       <li data-lang="en">Just your engine's <b>HTML5/WebGL export</b> — nothing from this kit gets added to your project.</li>
       <li data-lang="es">Solo el <b>export HTML5/WebGL</b> de tu motor — no agregas nada de este kit a tu proyecto.</li>
-      <li data-lang="en">No ParamsCatcher script and no verifier: Boly's own player controls playback, so there's nothing to integrate or test on your side.</li>
-      <li data-lang="es">Sin script ParamsCatcher y sin verificador: el reproductor de Boly controla la reproducción, así que no hay nada que integrar ni probar de tu lado.</li>
+      <li data-lang="en">No Boly SDK and no verifier: Boly's own player controls playback, so there's nothing to integrate or test on your side.</li>
+      <li data-lang="es">Sin SDK de Boly y sin verificador: el reproductor de Boly controla la reproducción, así que no hay nada que integrar ni probar de tu lado.</li>
     </ul>
   </div>
 
@@ -304,122 +306,163 @@
       <div class="step-head">
         <div class="num"><span>1</span></div>
         <div class="step-title">
-          <h3><span data-lang="en">Add the ParamsCatcher script</span><span data-lang="es">Agrega el script ParamsCatcher</span></h3>
-          <div class="sub"><span data-lang="en">Drop the heartbeat code into your project</span><span data-lang="es">Coloca el código de heartbeat en tu proyecto</span></div>
+          <h3><span data-lang="en">Add the Boly SDK</span><span data-lang="es">Agrega el SDK de Boly</span></h3>
+          <div class="sub"><span data-lang="en">Copy one folder into your project — nothing to place in a scene</span><span data-lang="es">Copia una carpeta a tu proyecto: no hay que colocar nada en una escena</span></div>
         </div>
         <div class="check"><svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#0d0719" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       </div>
       <div class="step-body">
         <div class="engine-only show" data-engine="unity">
-          <p data-lang="en">Create a new C# script <b>ParamsCatcher.cs</b> and paste in the contents of
-             <b>scripts/ParamsCatcherUNITY.md</b>. It reads the launch arguments, beats the Boly API
-             every ~60&nbsp;s to keep the session alive, and quits if the session is revoked.</p>
-          <p data-lang="es">Crea un nuevo script C# <b>ParamsCatcher.cs</b> y pega el contenido de
-             <b>scripts/ParamsCatcherUNITY.md</b>. Lee los argumentos de inicio, hace heartbeat a la API de
-             Boly cada ~60&nbsp;s para mantener la sesión viva, y cierra el juego si la sesión es revocada.</p>
+          <p data-lang="en">Copy the folder <b>sdk/unity/cl.boly.sdk</b> into your project's
+             <span class="gid">Packages/</span> folder (next to <span class="gid">Assets/</span>), so you end up with
+             <span class="gid">Packages/cl.boly.sdk/package.json</span>. Unity picks it up on its own — it appears in the
+             Package Manager as <b>Boly SDK</b> and adds a <b>Boly</b> menu. Requires Unity 2021.3 or newer.</p>
+          <p data-lang="es">Copia la carpeta <b>sdk/unity/cl.boly.sdk</b> dentro de la carpeta
+             <span class="gid">Packages/</span> de tu proyecto (junto a <span class="gid">Assets/</span>), para que quede
+             <span class="gid">Packages/cl.boly.sdk/package.json</span>. Unity la detecta sola: aparece en el Package
+             Manager como <b>Boly SDK</b> y agrega un menú <b>Boly</b>. Requiere Unity 2021.3 o superior.</p>
         </div>
         <div class="engine-only" data-engine="godot">
-          <p data-lang="en">Create a new script <b>ParamsCatcher.gd</b> and paste in the contents of
-             <b>scripts/ParamsCatcherGODOT.md</b>. It reparents itself to <span class="gid">/root</span> so
-             it survives scene changes and keeps heartbeating.</p>
-          <p data-lang="es">Crea un nuevo script <b>ParamsCatcher.gd</b> y pega el contenido de
-             <b>scripts/ParamsCatcherGODOT.md</b>. Se reparenta solo a <span class="gid">/root</span> para
-             sobrevivir a los cambios de escena y seguir haciendo heartbeat.</p>
+          <p data-lang="en">Copy the folder <b>sdk/godot/addons/boly_sdk</b> into your project as
+             <span class="gid">res://addons/boly_sdk</span>. Then open <b>Project ▸ Project Settings ▸ Plugins</b> and
+             enable <b>Boly SDK</b> — that registers the <span class="gid">Boly</span> autoload. Requires Godot 4.</p>
+          <p data-lang="es">Copia la carpeta <b>sdk/godot/addons/boly_sdk</b> a tu proyecto como
+             <span class="gid">res://addons/boly_sdk</span>. Luego abre <b>Proyecto ▸ Configuración del proyecto ▸
+             Plugins</b> y activa <b>Boly SDK</b>: eso registra el autoload <span class="gid">Boly</span>. Requiere Godot 4.</p>
         </div>
         <div class="engine-only" data-engine="unreal">
-          <p data-lang="en">Add <b>ValidationSubsystem.h</b> and <b>ValidationSubsystem.cpp</b> from
-             <b>scripts/ParamsCatcherUNREAL.h.md</b> / <b>.cpp.md</b>, and enable the
-             <span class="gid">HTTP</span>, <span class="gid">Json</span> modules in your
-             <span class="gid">.Build.cs</span>. It's a GameInstance subsystem that auto-creates — nothing to place in a level.</p>
-          <p data-lang="es">Agrega <b>ValidationSubsystem.h</b> y <b>ValidationSubsystem.cpp</b> desde
-             <b>scripts/ParamsCatcherUNREAL.h.md</b> / <b>.cpp.md</b>, y habilita los módulos
-             <span class="gid">HTTP</span> y <span class="gid">Json</span> en tu
-             <span class="gid">.Build.cs</span>. Es un subsystem de GameInstance que se auto-crea: no hay que colocar nada en un nivel.</p>
+          <p data-lang="en">Copy the folder <b>sdk/unreal/BolySDK</b> into <span class="gid">YourProject/Plugins/BolySDK</span>,
+             right-click your <span class="gid">.uproject</span> ▸ <b>Generate Visual Studio project files</b>, and build.
+             The plugin is a GameInstance subsystem that creates itself — nothing to place in a level. Requires Unreal 5.
+             A Blueprint-only project must become a C++ project first (<b>Tools ▸ New C++ Class</b>, any class) so the
+             plugin can compile.</p>
+          <p data-lang="es">Copia la carpeta <b>sdk/unreal/BolySDK</b> a <span class="gid">TuProyecto/Plugins/BolySDK</span>,
+             haz clic derecho en tu <span class="gid">.uproject</span> ▸ <b>Generate Visual Studio project files</b> y
+             compila. El plugin es un subsystem de GameInstance que se crea solo: no hay que colocar nada en un nivel.
+             Requiere Unreal 5. Un proyecto solo-Blueprint debe pasar a C++ primero (<b>Tools ▸ New C++ Class</b>,
+             cualquier clase) para que el plugin compile.</p>
         </div>
         <div class="engine-only" data-engine="gamemaker">
-          <p data-lang="en">Create an object <b>obj_params_catcher</b> with <b>Persistent</b> checked, and paste the code
-             from <b>scripts/ParamsCatcherGAMEMAKER.md</b> into its two events: the <b>Create</b> block into
-             the Create event and the <b>Async&nbsp;HTTP</b> block into the <span class="gid">Async ▸ HTTP</span> event.
-             It reads the launch arguments, beats the Boly API every ~60&nbsp;s, and quits if the session is revoked.</p>
-          <p data-lang="es">Crea un objeto <b>obj_params_catcher</b> con <b>Persistent</b> activado y pega el código de
-             <b>scripts/ParamsCatcherGAMEMAKER.md</b> en sus dos eventos: el bloque <b>Create</b> en el evento
-             Create y el bloque <b>Async&nbsp;HTTP</b> en el evento <span class="gid">Async ▸ HTTP</span>.
-             Lee los argumentos de inicio, hace heartbeat a la API de Boly cada ~60&nbsp;s, y cierra el juego si
-             la sesión es revocada.</p>
+          <p data-lang="en">GameMaker has no package import here, so it's three pastes (files in <b>sdk/gamemaker/</b>):</p>
+          <ol data-lang="en">
+            <li>Create a <b>Script</b> named <b>boly_sdk</b> and paste <b>scripts/boly_sdk.gml</b>.</li>
+            <li>Create an object <b>obj_boly</b> with <b>Persistent</b> checked. Add a <b>Create</b> event with
+                <b>objects/obj_boly/Create_0.gml</b> and an <span class="gid">Async ▸ HTTP</span> event with
+                <b>objects/obj_boly/Other_62.gml</b>.</li>
+            <li>Place one <b>obj_boly</b> instance in your <b>first</b> room (top of the Room Manager).</li>
+          </ol>
+          <p data-lang="es">En GameMaker no hay importación de paquete, así que son tres pegados (archivos en <b>sdk/gamemaker/</b>):</p>
+          <ol data-lang="es">
+            <li>Crea un <b>Script</b> llamado <b>boly_sdk</b> y pega <b>scripts/boly_sdk.gml</b>.</li>
+            <li>Crea un objeto <b>obj_boly</b> con <b>Persistent</b> activado. Agrega un evento <b>Create</b> con
+                <b>objects/obj_boly/Create_0.gml</b> y un evento <span class="gid">Async ▸ HTTP</span> con
+                <b>objects/obj_boly/Other_62.gml</b>.</li>
+            <li>Coloca una instancia de <b>obj_boly</b> en tu <b>primera</b> room (arriba del todo en el Room Manager).</li>
+          </ol>
+          <p data-lang="en">Requires a 2024+ runtime.</p>
+          <p data-lang="es">Requiere un runtime 2024 o superior.</p>
         </div>
         <div class="callout tip"><span class="ico">💡</span>
           <div>
-            <span data-lang="en">You're pasting the file <b>as-is</b> — it already implements the full contract
-            (correct request, no token leak, quit-on-revoke, network tolerance). Don't rewrite it.</span>
-            <span data-lang="es">Estás pegando el archivo <b>tal cual</b>: ya implementa todo el contrato
-            (request correcto, sin filtrar el token, cierre al revocar, tolerancia a fallos de red). No lo reescribas.</span>
+            <span data-lang="en">The SDK already implements the whole contract — reads the launch arguments,
+            keeps the session alive every ~60&nbsp;s even while paused, quits if the session is revoked, tolerates a
+            shaky connection. <b>Don't edit its files</b>; everything you need is in Step&nbsp;2. There is no game id
+            to set either: the launcher passes it at runtime (<span class="gid">-game_id</span>).</span>
+            <span data-lang="es">El SDK ya implementa todo el contrato: lee los argumentos de inicio, mantiene la
+            sesión viva cada ~60&nbsp;s incluso en pausa, cierra si la sesión es revocada y tolera una conexión
+            inestable. <b>No edites sus archivos</b>; lo que necesitas está en el Paso&nbsp;2. Tampoco hay que
+            configurar un id de juego: el launcher lo entrega al arrancar (<span class="gid">-game_id</span>).</span>
           </div>
         </div>
-        <div class="callout tip"><span class="ico">🔢</span>
+        <div class="engine-only" data-engine="godot"><div class="callout warn"><span class="ico">🧪</span>
           <div>
-            <span data-lang="en"><b>Where does the game id come from?</b> Leave <span class="gid">gameId</span> at
-            <span class="gid">0</span> — don't edit it. The launcher overwrites it via <span class="gid">-game_id</span>
-            when it starts your game, so a hardcoded value is ignored anyway. Boly assigns the real id when your game
-            record is created (Step&nbsp;5); from then on it's visible in your dashboard URL:
-            <span class="gid">boly.cl/developer/games/&lt;game_id&gt;/builds</span>.</span>
-            <span data-lang="es"><b>¿Dónde se asigna el gameID?</b> Deja <span class="gid">gameId</span> en
-            <span class="gid">0</span> y no lo edites. El launcher lo sobrescribe con <span class="gid">-game_id</span>
-            al arrancar tu juego, así que un valor fijo se ignora igual. Boly asigna el id real cuando se crea el
-            registro de tu juego (Paso&nbsp;5); desde ahí queda visible en la URL de tu panel:
-            <span class="gid">boly.cl/developer/games/&lt;game_id&gt;/builds</span>.</span>
+            <span data-lang="en">The Godot SDK is new. If the verifier (Step&nbsp;4) shows anything red, tell your Boly
+            contact and send the verifier output.</span>
+            <span data-lang="es">El SDK de Godot es nuevo. Si el verificador (Paso&nbsp;4) marca algo en rojo, avísale a
+            tu referente en Boly y envíale el resultado del verificador.</span>
           </div>
-        </div>
+        </div></div>
+        <div class="engine-only" data-engine="unreal"><div class="callout warn"><span class="ico">🧪</span>
+          <div>
+            <span data-lang="en">The Unreal SDK is new. If it doesn't compile, or the verifier (Step&nbsp;4) shows
+            anything red, tell your Boly contact and send the error or the verifier output.</span>
+            <span data-lang="es">El SDK de Unreal es nuevo. Si no compila, o el verificador (Paso&nbsp;4) marca algo en
+            rojo, avísale a tu referente en Boly y envíale el error o el resultado del verificador.</span>
+          </div>
+        </div></div>
+        <div class="engine-only" data-engine="gamemaker"><div class="callout warn"><span class="ico">🧪</span>
+          <div>
+            <span data-lang="en">The GameMaker SDK is new. If it doesn't compile, or the verifier (Step&nbsp;4) shows
+            anything red, tell your Boly contact and send the error or the verifier output.</span>
+            <span data-lang="es">El SDK de GameMaker es nuevo. Si no compila, o el verificador (Paso&nbsp;4) marca algo
+            en rojo, avísale a tu referente en Boly y envíale el error o el resultado del verificador.</span>
+          </div>
+        </div></div>
         <div class="callout ai"><span class="ico">🤖</span>
           <div class="body">
-            <div class="ai-head"><span data-lang="en">Or let an AI assistant do steps 1–2</span><span data-lang="es">O deja que un asistente de IA haga los pasos 1–2</span></div>
+            <div class="ai-head"><span data-lang="en">Or let an AI assistant do it</span><span data-lang="es">O deja que un asistente de IA lo haga</span></div>
             <div class="hint" style="margin:0 0 4px">
-              <span data-lang="en">Open Claude Code (or Cursor, etc.) in your game project and paste the prompt below. Make sure the AI can read the ParamsCatcher script for your engine — drag the kit's <b>scripts/</b> file into your project, or point the AI at it.</span>
-              <span data-lang="es">Abre Claude Code (o Cursor, etc.) en tu proyecto de juego y pega el prompt de abajo. Asegúrate de que la IA pueda leer el script ParamsCatcher de tu motor — arrastra el archivo de <b>scripts/</b> del kit a tu proyecto, o indícale la ruta.</span>
+              <span data-lang="en"><b>Steps 1–4 at once:</b> the kit's <b>INSTRUCCIONES_IA.md</b> tells the AI how to integrate the SDK, build the game and run the verifier. Open your AI in your game project and paste:</span>
+              <span data-lang="es"><b>Pasos 1–4 de una vez:</b> el archivo <b>INSTRUCCIONES_IA.md</b> del kit le explica a la IA cómo integrar el SDK, compilar el juego y correr el verificador. Abre tu IA en el proyecto de tu juego y pega:</span>
             </div>
-            <div class="engine-only show" data-engine="unity"><div class="code prompt"><span class="ptxt" data-lang="en">I'm integrating the Boly license heartbeat into my Unity game. Do these two steps:
+            <div class="code prompt"><span class="ptxt" data-lang="en">Read &lt;KIT&gt;/INSTRUCCIONES_IA.md and follow it to integrate Boly into this project, build it and test it with the verifier.</span><span class="ptxt" data-lang="es">Lee &lt;KIT&gt;/INSTRUCCIONES_IA.md y síguelo para integrar Boly en este proyecto, compilarlo y probarlo con el verificador.</span><button class="copy copy-prompt">Copy</button></div>
+            <div class="hint" style="margin:10px 0 4px"><b><span data-lang="en">Only steps 1–2:</span><span data-lang="es">Solo pasos 1–2:</span></b></div>
+            <div class="hint" style="margin:0 0 4px">
+              <span data-lang="en">Open Claude Code (or Cursor, etc.) in your game project and paste the prompt below. Replace <b>&lt;KIT&gt;</b> with the path of this kit folder so the AI can read the SDK.</span>
+              <span data-lang="es">Abre Claude Code (o Cursor, etc.) en tu proyecto de juego y pega el prompt de abajo. Reemplaza <b>&lt;KIT&gt;</b> por la ruta de esta carpeta del kit para que la IA pueda leer el SDK.</span>
+            </div>
+            <div class="engine-only show" data-engine="unity"><div class="code prompt"><span class="ptxt" data-lang="en">I'm integrating the Boly SDK into my Unity game. The SDK is in &lt;KIT&gt;/sdk/unity (read its README.md first). Do this:
 
-1. Copy the EXACT contents of scripts/ParamsCatcherUNITY.md into a new file Assets/ParamsCatcher.cs. Paste it verbatim — do not change the heartbeat logic.
-2. Make a bootstrap scene (e.g. AuthScene) with one empty GameObject and attach ParamsCatcher to it. In File &gt; Build Settings, set AuthScene to index 0 and my main game scene to index 1.
+1. Copy the folder &lt;KIT&gt;/sdk/unity/cl.boly.sdk into this project's Packages/ folder, unchanged (keep the .meta files). Do not edit the SDK.
+2. Find where my game starts its gameplay and make it wait for the session: if BolySDK.IsReady start right away, otherwise subscribe to BolySDK.OnReady.
+3. If the game has progress to save, save it in BolySDK.OnSessionEnded.
 
-Leave the gameId field at 0 — the launcher injects the real id at runtime.</span><span class="ptxt" data-lang="es">Estoy integrando el heartbeat de licencia de Boly en mi juego de Unity. Haz estos dos pasos:
+If the project has an old ParamsCatcher.cs, delete it and its GameObject.</span><span class="ptxt" data-lang="es">Estoy integrando el SDK de Boly en mi juego de Unity. El SDK está en &lt;KIT&gt;/sdk/unity (lee primero su README.md). Haz esto:
 
-1. Copia el contenido EXACTO de scripts/ParamsCatcherUNITY.md en un archivo nuevo Assets/ParamsCatcher.cs. Pégalo tal cual — no cambies la lógica del heartbeat.
-2. Crea una escena de arranque (ej. AuthScene) con un GameObject vacío y adjúntale ParamsCatcher. En File &gt; Build Settings, pon AuthScene en el índice 0 y mi escena principal en el índice 1.
+1. Copia la carpeta &lt;KIT&gt;/sdk/unity/cl.boly.sdk a la carpeta Packages/ de este proyecto, sin cambios (conserva los .meta). No edites el SDK.
+2. Busca dónde mi juego inicia el gameplay y haz que espere la sesión: si BolySDK.IsReady empieza de inmediato; si no, suscríbete a BolySDK.OnReady.
+3. Si el juego tiene progreso que guardar, guárdalo en BolySDK.OnSessionEnded.
 
-Deja el campo gameId en 0 — el launcher inyecta el id real en tiempo de ejecución.</span><button class="copy copy-prompt">Copy</button></div></div>
-            <div class="engine-only" data-engine="godot"><div class="code prompt"><span class="ptxt" data-lang="en">I'm integrating the Boly license heartbeat into my Godot game. Do these two steps:
+Si el proyecto tiene un ParamsCatcher.cs antiguo, bórralo junto con su GameObject.</span><button class="copy copy-prompt">Copy</button></div></div>
+            <div class="engine-only" data-engine="godot"><div class="code prompt"><span class="ptxt" data-lang="en">I'm integrating the Boly SDK into my Godot 4 game. The SDK is in &lt;KIT&gt;/sdk/godot (read its README.md first). Do this:
 
-1. Copy the EXACT contents of scripts/ParamsCatcherGODOT.md into a new file ParamsCatcher.gd. Paste it verbatim — do not change the heartbeat logic.
-2. Add it to a bootstrap scene (e.g. AuthScene.tscn) on a CHILD node (not the scene root) so it can reparent itself to /root and survive scene changes. Set that scene as the project's run/startup scene, and update the change_scene_to_file(...) path to my real main scene.
+1. Copy the folder &lt;KIT&gt;/sdk/godot/addons/boly_sdk to res://addons/boly_sdk, unchanged, and enable the "Boly SDK" plugin in project.godot (it registers the autoload "Boly"). Do not edit the SDK.
+2. Find where my game starts its gameplay and make it wait for the session: if Boly.is_ready start right away, otherwise connect Boly.session_ready.
+3. If the game has progress to save, save it on Boly.session_ended.
 
-Leave the game_id field at 0 — the launcher injects the real id at runtime.</span><span class="ptxt" data-lang="es">Estoy integrando el heartbeat de licencia de Boly en mi juego de Godot. Haz estos dos pasos:
+If the project has an old ParamsCatcher.gd, delete it and the node that uses it.</span><span class="ptxt" data-lang="es">Estoy integrando el SDK de Boly en mi juego de Godot 4. El SDK está en &lt;KIT&gt;/sdk/godot (lee primero su README.md). Haz esto:
 
-1. Copia el contenido EXACTO de scripts/ParamsCatcherGODOT.md en un archivo nuevo ParamsCatcher.gd. Pégalo tal cual — no cambies la lógica del heartbeat.
-2. Agrégalo a una escena de arranque (ej. AuthScene.tscn) en un nodo HIJO (no el nodo raíz de la escena) para que pueda reparentarse a /root y sobrevivir a los cambios de escena. Configura esa escena como la escena de inicio del proyecto, y actualiza la ruta de change_scene_to_file(...) a mi escena principal real.
+1. Copia la carpeta &lt;KIT&gt;/sdk/godot/addons/boly_sdk a res://addons/boly_sdk, sin cambios, y activa el plugin "Boly SDK" en project.godot (registra el autoload "Boly"). No edites el SDK.
+2. Busca dónde mi juego inicia el gameplay y haz que espere la sesión: si Boly.is_ready empieza de inmediato; si no, conecta Boly.session_ready.
+3. Si el juego tiene progreso que guardar, guárdalo en Boly.session_ended.
 
-Deja el campo game_id en 0 — el launcher inyecta el id real en tiempo de ejecución.</span><button class="copy copy-prompt">Copy</button></div></div>
-            <div class="engine-only" data-engine="unreal"><div class="code prompt"><span class="ptxt" data-lang="en">I'm integrating the Boly license heartbeat into my Unreal game. Do these two steps:
+Si el proyecto tiene un ParamsCatcher.gd antiguo, bórralo junto con el nodo que lo usa.</span><button class="copy copy-prompt">Copy</button></div></div>
+            <div class="engine-only" data-engine="unreal"><div class="code prompt"><span class="ptxt" data-lang="en">I'm integrating the Boly SDK into my Unreal 5 game. The SDK is in &lt;KIT&gt;/sdk/unreal (read its README.md first). Do this:
 
-1. Copy the EXACT contents of scripts/ParamsCatcherUNREAL.h.md and scripts/ParamsCatcherUNREAL.cpp.md into ValidationSubsystem.h and ValidationSubsystem.cpp. Paste them verbatim — do not change the heartbeat logic. Add HTTP and Json to the dependencies in my .Build.cs.
-2. It's a UGameInstanceSubsystem that auto-creates — nothing to place in a level. In Project Settings &gt; Maps &amp; Modes set a small Startup Map, and rename the OpenLevel("MainLevel") call to my real level.
+1. Copy the folder &lt;KIT&gt;/sdk/unreal/BolySDK to Plugins/BolySDK, unchanged. Do not edit the SDK. If this is a Blueprint-only project, add a minimal C++ class so plugins can compile.
+2. Find where my game starts its gameplay and make it wait for the session: get the UBolySubsystem from the GameInstance; if IsReady() start right away, otherwise bind OnReady.
+3. If the game has progress to save, save it in OnSessionEnded.
 
-Leave the GameId field at 0 — the launcher injects the real id at runtime.</span><span class="ptxt" data-lang="es">Estoy integrando el heartbeat de licencia de Boly en mi juego de Unreal. Haz estos dos pasos:
+If the project has an old ValidationSubsystem.h/.cpp, delete them.</span><span class="ptxt" data-lang="es">Estoy integrando el SDK de Boly en mi juego de Unreal 5. El SDK está en &lt;KIT&gt;/sdk/unreal (lee primero su README.md). Haz esto:
 
-1. Copia el contenido EXACTO de scripts/ParamsCatcherUNREAL.h.md y scripts/ParamsCatcherUNREAL.cpp.md en ValidationSubsystem.h y ValidationSubsystem.cpp. Pégalos tal cual — no cambies la lógica del heartbeat. Agrega HTTP y Json a las dependencias en mi .Build.cs.
-2. Es un UGameInstanceSubsystem que se auto-crea — no hay que colocar nada en un nivel. En Project Settings &gt; Maps &amp; Modes configura un Startup Map pequeño, y renombra la llamada OpenLevel("MainLevel") a mi nivel real.
+1. Copia la carpeta &lt;KIT&gt;/sdk/unreal/BolySDK a Plugins/BolySDK, sin cambios. No edites el SDK. Si es un proyecto solo-Blueprint, agrega una clase C++ mínima para que los plugins compilen.
+2. Busca dónde mi juego inicia el gameplay y haz que espere la sesión: obtén el UBolySubsystem del GameInstance; si IsReady() empieza de inmediato; si no, enlaza OnReady.
+3. Si el juego tiene progreso que guardar, guárdalo en OnSessionEnded.
 
-Deja el campo GameId en 0 — el launcher inyecta el id real en tiempo de ejecución.</span><button class="copy copy-prompt">Copy</button></div></div>
-            <div class="engine-only" data-engine="gamemaker"><div class="code prompt"><span class="ptxt" data-lang="en">I'm integrating the Boly license heartbeat into my GameMaker game. Do these two steps:
+Si el proyecto tiene un ValidationSubsystem.h/.cpp antiguo, bórralos.</span><button class="copy copy-prompt">Copy</button></div></div>
+            <div class="engine-only" data-engine="gamemaker"><div class="code prompt"><span class="ptxt" data-lang="en">I'm integrating the Boly SDK into my GameMaker game. The SDK is in &lt;KIT&gt;/sdk/gamemaker (read its README.md first). Do this:
 
-1. Create an object obj_params_catcher with Persistent checked. Paste the EXACT contents of scripts/ParamsCatcherGAMEMAKER.md into its two events — the Create block into the Create event and the Async HTTP block into the Async ▸ HTTP event. Paste them verbatim — do not change the heartbeat logic.
-2. Make a bootstrap room (e.g. rm_auth), place one obj_params_catcher instance in it, and set it first in the Room Manager. Rename the room_goto(rm_main) call to my real main room.
+1. Create a Script asset boly_sdk with the EXACT contents of scripts/boly_sdk.gml, and a Persistent object obj_boly whose Create event is objects/obj_boly/Create_0.gml and whose Async HTTP event is objects/obj_boly/Other_62.gml. Paste verbatim — do not edit the SDK.
+2. Place one obj_boly instance in my first room.
+3. Make my gameplay wait for the session with boly_on_ready(function() { ... }), and if the game has progress to save, save it in boly_on_session_ended(function(_reason) { ... }).
 
-Leave the game_id field at 0 — the launcher injects the real id at runtime.</span><span class="ptxt" data-lang="es">Estoy integrando el heartbeat de licencia de Boly en mi juego de GameMaker. Haz estos dos pasos:
+If the project has an old obj_params_catcher, delete it.</span><span class="ptxt" data-lang="es">Estoy integrando el SDK de Boly en mi juego de GameMaker. El SDK está en &lt;KIT&gt;/sdk/gamemaker (lee primero su README.md). Haz esto:
 
-1. Crea un objeto obj_params_catcher con Persistent activado. Pega el contenido EXACTO de scripts/ParamsCatcherGAMEMAKER.md en sus dos eventos — el bloque Create en el evento Create y el bloque Async HTTP en el evento Async ▸ HTTP. Pégalos tal cual — no cambies la lógica del heartbeat.
-2. Crea una room de arranque (ej. rm_auth), coloca una instancia de obj_params_catcher y ponla primera en el Room Manager. Renombra la llamada room_goto(rm_main) a mi room principal real.
+1. Crea un Script boly_sdk con el contenido EXACTO de scripts/boly_sdk.gml, y un objeto Persistent obj_boly cuyo evento Create sea objects/obj_boly/Create_0.gml y su evento Async HTTP sea objects/obj_boly/Other_62.gml. Pégalos tal cual — no edites el SDK.
+2. Coloca una instancia de obj_boly en mi primera room.
+3. Haz que el gameplay espere la sesión con boly_on_ready(function() { ... }), y si el juego tiene progreso que guardar, guárdalo en boly_on_session_ended(function(_razon) { ... }).
 
-Deja el campo game_id en 0 — el launcher inyecta el id real en tiempo de ejecución.</span><button class="copy copy-prompt">Copy</button></div></div>
+Si el proyecto tiene un obj_params_catcher antiguo, bórralo.</span><button class="copy copy-prompt">Copy</button></div></div>
           </div>
         </div>
       </div>
@@ -430,90 +473,119 @@ Deja el campo game_id en 0 — el launcher inyecta el id real en tiempo de ejecu
       <div class="step-head">
         <div class="num"><span>2</span></div>
         <div class="step-title">
-          <h3><span data-lang="en">Wire it into your startup &amp; make it persist</span><span data-lang="es">Conéctalo a tu arranque y haz que persista</span></h3>
-          <div class="sub"><span data-lang="en">The validator must run first and survive scene changes</span><span data-lang="es">El validador debe ejecutarse primero y sobrevivir a los cambios de escena</span></div>
+          <h3><span data-lang="en">Start gameplay when Boly is ready</span><span data-lang="es">Empieza el juego cuando Boly esté listo</span></h3>
+          <div class="sub"><span data-lang="en">A few lines in your own code — no bootstrap scene needed</span><span data-lang="es">Unas pocas líneas en tu propio código: no hace falta una escena de arranque</span></div>
         </div>
         <div class="check"><svg viewBox="0 0 24 24" fill="none"><path d="M5 13l4 4L19 7" stroke="#0d0719" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
       </div>
       <div class="step-body">
+        <p data-lang="en">The SDK validates the session in the background as the game opens. Start gameplay once it's
+           ready, and save progress when the session ends (the SDK closes the game right after that).</p>
+        <p data-lang="es">El SDK valida la sesión en segundo plano mientras el juego abre. Empieza el gameplay cuando
+           esté lista, y guarda el progreso cuando la sesión termine (el SDK cierra el juego justo después).</p>
         <div class="engine-only show" data-engine="unity">
-          <ol data-lang="en">
-            <li>Make a small <b>bootstrap scene</b> (e.g. <i>AuthScene</i>) with one empty
-                GameObject, and attach <b>ParamsCatcher</b> to it.</li>
-            <li>In <b>File ▸ Build Settings</b>, set scene order:
-                <b>index 0 = AuthScene</b>, <b>index 1 = your main game scene</b>.</li>
-          </ol>
-          <ol data-lang="es">
-            <li>Crea una pequeña <b>escena de arranque</b> (ej. <i>AuthScene</i>) con un GameObject
-                vacío y adjúntale <b>ParamsCatcher</b>.</li>
-            <li>En <b>File ▸ Build Settings</b>, ordena las escenas:
-                <b>índice 0 = AuthScene</b>, <b>índice 1 = tu escena principal del juego</b>.</li>
-          </ol>
-          <p data-lang="en">On the first successful validation the script calls
-             <span class="gid">SceneManager.LoadSceneAsync(1)</span> and keeps itself alive with
-             <span class="gid">DontDestroyOnLoad</span>.</p>
-          <p data-lang="es">En la primera validación exitosa el script llama a
-             <span class="gid">SceneManager.LoadSceneAsync(1)</span> y se mantiene vivo con
-             <span class="gid">DontDestroyOnLoad</span>.</p>
+<div class="code">using Boly;
+
+void Awake()
+{
+    if (BolySDK.IsReady) StartGame();
+    else BolySDK.OnReady += StartGame;
+
+    BolySDK.OnSessionEnded += reason =&gt; SaveProgress();
+}</div>
+          <p class="hint" data-lang="en">Prefer a separate loading scene? Menu <b>Boly ▸ Settings ▸ Scene On Ready</b> loads a
+             scene (Build Settings index) when the session is ready.</p>
+          <p class="hint" data-lang="es">¿Prefieres una escena de carga aparte? Menú <b>Boly ▸ Settings ▸ Scene On Ready</b>
+             carga una escena (índice de Build Settings) cuando la sesión está lista.</p>
         </div>
         <div class="engine-only" data-engine="godot">
-          <ol data-lang="en">
-            <li>Make a bootstrap scene (e.g. <i>AuthScene.tscn</i>) and attach the script to a
-                <b>child node</b> (not the scene root) — it reparents itself to
-                <span class="gid">/root</span> to survive scene changes.</li>
-            <li>Set this scene as your project's run/startup scene, and update the
-                <span class="gid">change_scene_to_file(...)</span> path to your real main scene.</li>
-          </ol>
-          <ol data-lang="es">
-            <li>Crea una escena de arranque (ej. <i>AuthScene.tscn</i>) y adjunta el script a un
-                <b>nodo hijo</b> (no al nodo raíz de la escena): se reparenta solo a
-                <span class="gid">/root</span> para sobrevivir a los cambios de escena.</li>
-            <li>Configura esta escena como la escena de inicio del proyecto, y actualiza la ruta de
-                <span class="gid">change_scene_to_file(...)</span> a tu escena principal real.</li>
-          </ol>
+<div class="code">func _ready():
+    if Boly.is_ready:
+        _start_game()
+    else:
+        Boly.session_ready.connect(_start_game)
+    Boly.session_ended.connect(func(_reason): _save_progress())</div>
+          <p class="hint" data-lang="en">Prefer a separate loading scene? <b>Project Settings ▸ boly ▸ scene_on_ready</b> changes
+             to that scene when the session is ready.</p>
+          <p class="hint" data-lang="es">¿Prefieres una escena de carga aparte? <b>Configuración del proyecto ▸ boly ▸
+             scene_on_ready</b> cambia a esa escena cuando la sesión está lista.</p>
         </div>
         <div class="engine-only" data-engine="unreal">
-          <ol data-lang="en">
-            <li>In <b>Project Settings ▸ Maps &amp; Modes</b>, set your <b>Startup Map</b> to a small
-                auth map.</li>
-            <li>The subsystem validates, then calls <span class="gid">OpenLevel("MainLevel")</span> —
-                rename that to your real level. It uses a global ticker, so the heartbeat keeps
-                running across level loads.</li>
-          </ol>
-          <ol data-lang="es">
-            <li>En <b>Project Settings ▸ Maps &amp; Modes</b>, configura tu <b>Startup Map</b> a un
-                pequeño mapa de autenticación.</li>
-            <li>El subsystem valida y luego llama a <span class="gid">OpenLevel("MainLevel")</span>:
-                cámbialo por tu nivel real. Usa un ticker global, así que el heartbeat sigue corriendo
-                entre niveles.</li>
-          </ol>
+<div class="code">#include "BolySubsystem.h"
+
+UBolySubsystem* Boly = GetGameInstance()-&gt;GetSubsystem&lt;UBolySubsystem&gt;();
+if (Boly-&gt;IsReady()) StartGame();
+else Boly-&gt;OnReady.AddDynamic(this, &amp;AMyActor::StartGame);        // UFUNCTION()
+Boly-&gt;OnSessionEnded.AddDynamic(this, &amp;AMyActor::SaveProgress);  // UFUNCTION() void SaveProgress(EBolyEndReason)</div>
+          <p class="hint" data-lang="en">In Blueprint: <b>Get Game Instance Subsystem (Boly Subsystem)</b> ▸ <i>Is Ready</i> /
+             <i>Bind Event to On Ready</i>. Prefer a separate loading map? <b>Project Settings ▸ Plugins ▸ Boly SDK ▸
+             Level On Ready</b>.</p>
+          <p class="hint" data-lang="es">En Blueprint: <b>Get Game Instance Subsystem (Boly Subsystem)</b> ▸ <i>Is Ready</i> /
+             <i>Bind Event to On Ready</i>. ¿Prefieres un mapa de carga aparte? <b>Project Settings ▸ Plugins ▸ Boly SDK ▸
+             Level On Ready</b>.</p>
         </div>
         <div class="engine-only" data-engine="gamemaker">
-          <ol data-lang="en">
-            <li>Make a small <b>bootstrap room</b> (e.g. <i>rm_auth</i>), place one
-                <b>obj_params_catcher</b> instance in it, and set it <b>first in the Room Manager</b>.</li>
-            <li>On the first successful validation the script calls <span class="gid">room_goto(rm_main)</span> —
-                rename that to your real main room. The object is <b>Persistent</b> and the heartbeat runs on a
-                global time source, so it keeps running across rooms.</li>
-          </ol>
-          <ol data-lang="es">
-            <li>Crea una pequeña <b>room de arranque</b> (ej. <i>rm_auth</i>), coloca una instancia de
-                <b>obj_params_catcher</b> y ponla <b>primera en el Room Manager</b>.</li>
-            <li>En la primera validación exitosa el script llama a <span class="gid">room_goto(rm_main)</span>:
-                cámbialo por tu room principal real. El objeto es <b>Persistent</b> y el heartbeat corre sobre un
-                time source global, así que sigue corriendo entre rooms.</li>
-          </ol>
+<div class="code">boly_on_ready(function() { start_game(); });
+boly_on_session_ended(function(_reason) { save_progress(); });</div>
+          <p class="hint" data-lang="en">Prefer a separate loading room? In the <b>Creation Code</b> of the obj_boly instance
+             write <span class="gid">room_on_ready = rm_main;</span>.</p>
+          <p class="hint" data-lang="es">¿Prefieres una room de carga aparte? En el <b>Creation Code</b> de la instancia de
+             obj_boly escribe <span class="gid">room_on_ready = rm_main;</span>.</p>
         </div>
-        <div class="callout warn"><span class="ico">⚠️</span>
+        <div class="callout tip"><span class="ico">🎮</span>
           <div>
-            <span data-lang="en">The whole point is that the heartbeat <b>keeps running after the game starts</b>.
-            If the validator only lives in the first scene and dies on load, the verifier's
-            cadence check (and real single-session enforcement) will fail.</span>
-            <span data-lang="es">El punto clave es que el heartbeat <b>siga corriendo después de que el juego arranca</b>.
-            Si el validador solo vive en la primera escena y muere al cargar, la prueba de cadencia del
-            verificador (y la sesión única real) fallarán.</span>
+            <span data-lang="en">In the <b>editor</b> the SDK doesn't contact Boly: it becomes ready immediately, so you can
+            keep pressing Play as usual.</span>
+            <span data-lang="es">En el <b>editor</b> el SDK no contacta a Boly: queda listo de inmediato, así que puedes
+            seguir probando con Play como siempre.</span>
           </div>
         </div>
+        <h4 class="sub-head"><span data-lang="en">Achievements (optional)</span><span data-lang="es">Logros (opcional)</span></h4>
+        <p data-lang="en">Achievements show up on each player's public Boly profile and on their teacher's dashboard.
+           Define them at <b>boly.cl ▸ Developer Dashboard ▸ your game ▸ Manage achievements</b> (name, how to earn
+           it, target, key), download the <b>constants file</b> for your engine there, and report progress from your
+           code. No achievements? Skip this — the game works the same.</p>
+        <p data-lang="es">Los logros aparecen en el perfil público de cada jugador en Boly y en el panel de su profesor.
+           Defínelos en <b>boly.cl ▸ Panel de Desarrollador ▸ tu juego ▸ Gestionar logros</b> (nombre, cómo se
+           consigue, meta y clave), descarga ahí el <b>archivo de constantes</b> de tu motor y reporta el progreso
+           desde tu código. ¿Sin logros? Salta esto: el juego funciona igual.</p>
+        <div class="engine-only show" data-engine="unity">
+<div class="code">BolySDK.Achievements.Unlock(BolyAchievements.NIVEL_5_COMPLETO);
+BolySDK.Achievements.Increment(BolyAchievements.RESPONDER_100);     // +1
+BolySDK.Achievements.SetProgress(BolyAchievements.ESTRELLAS, 12);   // never goes down
+
+BolySDK.Achievements.OnUnlocked += a =&gt; ShowPopup(a.ApiName);</div>
+          <p class="hint" data-lang="en">Calls never block or fail: each one is queued on disk (per player, so shared lab PCs
+             never mix students) and sent as soon as there's a session and a connection. In the editor nothing is sent;
+             <i>Unlock</i> fires <i>OnUnlocked</i> locally so you can test your popup.</p>
+          <p class="hint" data-lang="es">Las llamadas nunca bloquean ni fallan: cada una se guarda en una cola en disco (por
+             jugador, así en un PC compartido del colegio nunca se mezclan alumnos) y se envía apenas hay sesión y conexión.
+             En el editor no se envía nada; <i>Unlock</i> dispara <i>OnUnlocked</i> localmente para probar tu popup.</p>
+        </div>
+        <div class="engine-only" data-engine="godot"><div class="callout warn"><span class="ico">⏳</span>
+          <div>
+            <span data-lang="en">Achievements for Godot are on the way (Unity has them first). You can already define them on
+            boly.cl; the next SDK update adds the calls.</span>
+            <span data-lang="es">Los logros para Godot vienen en camino (Unity los tiene primero). Ya puedes definirlos en
+            boly.cl; la próxima actualización del SDK agrega las llamadas.</span>
+          </div>
+        </div></div>
+        <div class="engine-only" data-engine="unreal"><div class="callout warn"><span class="ico">⏳</span>
+          <div>
+            <span data-lang="en">Achievements for Unreal are on the way (Unity has them first). You can already define them on
+            boly.cl; the next SDK update adds the calls.</span>
+            <span data-lang="es">Los logros para Unreal vienen en camino (Unity los tiene primero). Ya puedes definirlos en
+            boly.cl; la próxima actualización del SDK agrega las llamadas.</span>
+          </div>
+        </div></div>
+        <div class="engine-only" data-engine="gamemaker"><div class="callout warn"><span class="ico">⏳</span>
+          <div>
+            <span data-lang="en">Achievements for GameMaker are on the way (Unity has them first). You can already define them
+            on boly.cl; the next SDK update adds the calls.</span>
+            <span data-lang="es">Los logros para GameMaker vienen en camino (Unity los tiene primero). Ya puedes definirlos en
+            boly.cl; la próxima actualización del SDK agrega las llamadas.</span>
+          </div>
+        </div></div>
       </div>
     </div>
 
@@ -532,12 +604,10 @@ Deja el campo game_id en 0 — el launcher inyecta el id real en tiempo de ejecu
         <p data-lang="es">Compila un <span class="gid">.exe</span> de Windows como lo haces normalmente.</p>
         <div class="callout warn"><span class="ico">⚠️</span>
           <div>
-            <span data-lang="en">Test the actual <b>build</b>, never Play mode in the editor —
-            the "quit on revoke" behavior can't work inside the editor
-            (e.g. Unity's <span class="gid">Application.Quit()</span> / GameMaker's <span class="gid">game_end()</span> do nothing there).</span>
-            <span data-lang="es">Prueba el <b>build</b> real, nunca el modo Play del editor:
-            el comportamiento de "cerrar al revocar" no funciona dentro del editor
-            (ej. <span class="gid">Application.Quit()</span> de Unity o <span class="gid">game_end()</span> de GameMaker no hacen nada ahí).</span>
+            <span data-lang="en">Test the actual <b>build</b>, never Play mode in the editor — in the editor the SDK
+            skips Boly entirely, so the session checks only run in a build.</span>
+            <span data-lang="es">Prueba el <b>build</b> real, nunca el modo Play del editor: en el editor el SDK no
+            contacta a Boly, así que las comprobaciones de sesión solo corren en un build.</span>
           </div>
         </div>
       </div>
@@ -560,9 +630,9 @@ Deja el campo game_id en 0 — el launcher inyecta el id real en tiempo de ejecu
            (reemplaza la ruta por tu build):</p>
         <div class="code" id="cmd-block"><span class="cmd-line">.\boly-verify-win.exe <span class="flag">--game</span> <span class="str">"C:\path\to\YourGame.exe"</span> <span class="flag">--game-id</span> <span class="flag">0</span></span><button class="copy" id="copyCmd">Copy</button></div>
         <p data-lang="en">Your game will <b>open and close a few times</b> — that's the verifier launching it,
-           pretending to be the Boly server, and watching how it behaves. It runs five checks:</p>
+           pretending to be the Boly server, and watching how it behaves. It runs six checks:</p>
         <p data-lang="es">Tu juego se <b>abrirá y cerrará varias veces</b>: es el verificador lanzándolo,
-           haciéndose pasar por el servidor de Boly y observando cómo se comporta. Ejecuta cinco pruebas:</p>
+           haciéndose pasar por el servidor de Boly y observando cómo se comporta. Ejecuta seis pruebas:</p>
         <table class="scn">
           <thead>
             <tr>
@@ -587,6 +657,9 @@ Deja el campo game_id en 0 — el launcher inyecta el id real en tiempo de ejecu
             <tr><td>5</td>
               <td><b><span data-lang="en">No key</span><span data-lang="es">Sin clave</span></b></td>
               <td><span data-lang="en">refuses to start with no session at all</span><span data-lang="es">se niega a iniciar sin ninguna sesión</span></td></tr>
+            <tr><td>6</td>
+              <td><b><span data-lang="en">Achievements</span><span data-lang="es">Logros</span></b></td>
+              <td><span data-lang="en">reports a test achievement, retries it after a failure without counting it twice, and keeps playing (the verifier triggers it — no code needed)</span><span data-lang="es">reporta un logro de prueba, lo reintenta tras un fallo sin contarlo dos veces y sigue jugando (el verificador lo provoca: no necesitas programar nada)</span></td></tr>
           </tbody>
         </table>
         <div class="callout tip"><span class="ico">✅</span>
@@ -601,25 +674,41 @@ Deja el campo game_id en 0 — el launcher inyecta el id real en tiempo de ejecu
         <p style="margin-top:18px;font-weight:600;color:#fff" data-lang="en">If something is red:</p>
         <p style="margin-top:18px;font-weight:600;color:#fff" data-lang="es">Si algo está en rojo:</p>
         <details class="ts"><summary><span class="badge fail">FAIL</span><span data-lang="en">Game sent a heartbeat</span><span data-lang="es">El juego envió un heartbeat</span></summary>
-          <p data-lang="en">The validator isn't running at startup. Re-check <b>Step 2</b> — the script must be in
-          your <b>first</b> scene/level so it runs the moment the game launches.</p>
-          <p data-lang="es">El validador no se está ejecutando al inicio. Revisa el <b>Paso 2</b>: el script debe estar
-          en tu <b>primera</b> escena/nivel para que se ejecute apenas arranca el juego.</p></details>
+          <p data-lang="en">The SDK isn't running in the build. Re-check <b>Step 1</b>: Unity — the package is in
+          <span class="gid">Packages/</span> and <b>Boly ▸ Settings ▸ Enabled In Builds</b> is ticked; Godot — the
+          <b>Boly SDK</b> plugin is enabled; Unreal — the plugin compiled into the build; GameMaker —
+          <b>obj_boly</b> is in your first room.</p>
+          <p data-lang="es">El SDK no se está ejecutando en el build. Revisa el <b>Paso 1</b>: Unity — el paquete está en
+          <span class="gid">Packages/</span> y <b>Boly ▸ Settings ▸ Enabled In Builds</b> está marcado; Godot — el plugin
+          <b>Boly SDK</b> está activado; Unreal — el plugin se compiló en el build; GameMaker — <b>obj_boly</b> está en
+          tu primera room.</p></details>
         <details class="ts"><summary><span class="badge fail">FAIL</span><span data-lang="en">No Authorization header</span><span data-lang="es">Sin header Authorization</span></summary>
-          <p data-lang="en">Your script is attaching a login token to the heartbeat. Use the provided script as-is —
-          it sends only the session key, never an Authorization header.</p>
-          <p data-lang="es">Tu script está adjuntando un token de login al heartbeat. Usa el script provisto tal cual:
-          envía solo la clave de sesión, nunca un header Authorization.</p></details>
+          <p data-lang="en">Something in your game attaches a login token to the heartbeat. The SDK never sends one —
+          look for your own networking code (or an old ParamsCatcher) adding it.</p>
+          <p data-lang="es">Algo en tu juego le agrega un token de login al heartbeat. El SDK nunca lo envía: busca tu
+          propio código de red (o un ParamsCatcher antiguo) que lo agregue.</p></details>
         <details class="ts"><summary><span class="badge fail">FAIL</span><span data-lang="en">Game quit on 403</span><span data-lang="es">El juego cerró con 403</span></summary>
-          <p data-lang="en">Your game keeps running after the session is revoked. The provided script quits on a
-          <span class="gid">403</span> response — make sure you didn't remove that branch.</p>
-          <p data-lang="es">Tu juego sigue corriendo después de que la sesión es revocada. El script provisto cierra
-          ante una respuesta <span class="gid">403</span>: asegúrate de no haber eliminado esa parte.</p></details>
+          <p data-lang="en">Your game keeps running after the session is revoked. The SDK asks the engine to quit —
+          check that your code doesn't cancel quitting (e.g. Unity's <span class="gid">Application.wantsToQuit</span>
+          returning false) or block inside <i>OnSessionEnded</i>.</p>
+          <p data-lang="es">Tu juego sigue corriendo después de que la sesión es revocada. El SDK le pide al motor que
+          cierre: revisa que tu código no cancele el cierre (ej. <span class="gid">Application.wantsToQuit</span> de
+          Unity devolviendo false) ni se bloquee dentro de <i>OnSessionEnded</i>.</p></details>
         <details class="ts"><summary><span class="badge fail">FAIL</span><span data-lang="en">Cadence is steady</span><span data-lang="es">La cadencia es constante</span></summary>
-          <p data-lang="en">The heartbeat stopped (or fires far too often) after the game loaded. The validator
-          isn't surviving the scene change — revisit <b>Step 2</b>'s persistence note.</p>
-          <p data-lang="es">El heartbeat se detuvo (o se dispara demasiado seguido) después de cargar el juego.
-          El validador no está sobreviviendo al cambio de escena: revisa la nota de persistencia del <b>Paso 2</b>.</p></details>
+          <p data-lang="en">The heartbeat stopped after the game loaded. Usually a long <b>blocking</b> load freezes the
+          main thread — load scenes/levels asynchronously.</p>
+          <p data-lang="es">El heartbeat se detuvo después de cargar el juego. Normalmente una carga larga
+          <b>bloqueante</b> congela el hilo principal: carga escenas/niveles de forma asíncrona.</p></details>
+        <details class="ts"><summary><span class="badge warn">WARN</span><span data-lang="en">Identifies the SDK</span><span data-lang="es">Identifica el SDK</span></summary>
+          <p data-lang="en">Your build is still using the old ParamsCatcher script instead of the SDK. Remove it and
+          follow <b>Step 1</b>.</p>
+          <p data-lang="es">Tu build todavía usa el script ParamsCatcher antiguo en vez del SDK. Bórralo y sigue el
+          <b>Paso 1</b>.</p></details>
+        <details class="ts"><summary><span class="badge fail">FAIL</span><span data-lang="en">Achievements</span><span data-lang="es">Logros</span></summary>
+          <p data-lang="en">Use the SDK files from this kit unchanged — the retry and the session headers are built in. A
+          <b>WARN</b> (not a failure) just means your engine's SDK doesn't have achievements yet.</p>
+          <p data-lang="es">Usa los archivos del SDK de este kit sin cambios: el reintento y los headers de sesión ya vienen
+          incluidos. Un <b>WARN</b> (no es un fallo) solo significa que el SDK de tu motor todavía no tiene logros.</p></details>
         <p class="hint" style="margin-top:14px" data-lang="en">Want to see the real 60-second timing instead of the fast
            test cadence? Add <span class="gid">--real-cadence</span> (it just takes a few minutes).</p>
         <p class="hint" style="margin-top:14px" data-lang="es">¿Quieres ver el tiempo real de 60 segundos en vez de la cadencia
@@ -767,10 +856,10 @@ Deja el campo game_id en 0 — el launcher inyecta el id real en tiempo de ejecu
         </div>
         <div class="callout tip"><span class="ico">💡</span>
           <div>
-            <span data-lang="en">No ParamsCatcher, no license heartbeat, no <span class="gid">-game_id</span>/<span class="gid">-key</span>
+            <span data-lang="en">No Boly SDK, no license heartbeat, no <span class="gid">-game_id</span>/<span class="gid">-key</span>
             arguments to read. Those exist for the downloadable-game track; a browser-style build runs inside
             Boly's own player, which controls access on its own.</span>
-            <span data-lang="es">Sin ParamsCatcher, sin heartbeat de licencia, sin argumentos <span class="gid">-game_id</span>/<span class="gid">-key</span>
+            <span data-lang="es">Sin SDK de Boly, sin heartbeat de licencia, sin argumentos <span class="gid">-game_id</span>/<span class="gid">-key</span>
             que leer. Eso existe para la vía de juegos descargables; un build tipo navegador corre dentro del
             reproductor propio de Boly, que controla el acceso por su cuenta.</span>
           </div>
@@ -882,7 +971,7 @@ Deja el campo game_id en 0 — el launcher inyecta el id real en tiempo de ejecu
 
 <script>
 (function(){
-  const KEY='boly-guide-v1';
+  const KEY='boly-guide-v2';
   // Every step across both tracks, but progress (and "ready to ship") only
   // ever counts the ones belonging to the active track — a desktop developer
   // should never see 5/8 and wonder what the other three are.

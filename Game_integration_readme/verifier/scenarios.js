@@ -376,12 +376,123 @@ async function scenarioMissingKey(ctx) {
   return result(title, checks)
 }
 
+// ── Scenario 6 ────────────────────────────────────────────────────────────
+// Achievements (Boly SDK 0.2+). The game is launched with the test-only
+// -boly_test_achievement flag, which the SDK honors only when -api_base is
+// a local server, and unlocks that achievement as soon as the session is
+// ready. The first report gets a 500: the SDK must keep it and retry with the
+// same client_event_id, without quitting the game.
+const TEST_ACHIEVEMENT = 'BOLY_VERIFIER_TEST'
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+async function scenarioAchievements(ctx) {
+  const title = 'Achievements — reported, retried, never counted twice'
+  const server = new MockServer()
+  server.setResponder(() => ok200)
+  let posts = 0
+  server.setLumenResponder((i, call) => {
+    if (call.method === 'POST' && call.path === '/v1/lumen/achievements' && ++posts === 1) {
+      return { status: 500, body: { message: 'boom' } }
+    }
+    return null
+  })
+  const port = await server.start(ctx.port)
+  const key = makeKey()
+  const { child, state } = launchGame({
+    gamePath: ctx.gamePath,
+    launcher: ctx.launcher,
+    gameId: ctx.gameId,
+    key,
+    port,
+    heartbeat: ctx.heartbeat,
+    extraArgs: ['-boly_test_achievement', TEST_ACHIEVEMENT],
+  })
+
+  const isPost = (c) => c.method === 'POST' && c.path === '/v1/lumen/achievements'
+  await server.waitForLumen((calls) => calls.filter(isPost).length >= 2, (ctx.intervalSec * 4 + 8) * 1000)
+  const exitedEarly = state.exited
+  killGame(child)
+  await server.stop()
+
+  const fatal = fatalIfSpawnError(state, title)
+  if (fatal) return fatal
+
+  const calls = server.lumen
+  const postCalls = calls.filter(isPost)
+  if (calls.length === 0) {
+    const usesSdk = server.beats.some((b) => b.sdk)
+    const r = result(title, [
+      check(
+        'Reports achievements through /v1/lumen/achievements',
+        'warn',
+        usesSdk
+          ? 'no achievement traffic — this SDK version has no achievements (update to Boly SDK 0.2+)'
+          : 'not applicable: the build uses a ParamsCatcher script, not the Boly SDK',
+      ),
+    ])
+    r.skipped = true
+    r.failed = false
+    return r
+  }
+
+  const checks = []
+  checks.push(
+    calls.some((c) => c.method === 'GET' && c.path === '/v1/lumen/achievements')
+      ? check('Syncs achievement state at startup (GET /v1/lumen/achievements)', 'pass')
+      : check('Syncs achievement state at startup (GET /v1/lumen/achievements)', 'warn', 'no GET seen'),
+  )
+
+  const badHeaders = calls.find((c) => c.key !== key || String(c.gameId) !== String(ctx.gameId) || c.hasAuth)
+  checks.push(
+    badHeaders
+      ? check(
+          'Sends X-Boly-Game-Id + X-Boly-Key, no Authorization',
+          'fail',
+          badHeaders.hasAuth ? 'an Authorization header was present' : 'X-Boly-Game-Id / X-Boly-Key did not match -game_id / -key',
+        )
+      : check('Sends X-Boly-Game-Id + X-Boly-Key, no Authorization', 'pass'),
+  )
+
+  const first = postCalls[0]
+  const firstUpdate = first?.parsed?.updates?.find((u) => u.api_name === TEST_ACHIEVEMENT)
+  const shapeOk = firstUpdate && firstUpdate.op === 'unlock' && UUID_RE.test(String(firstUpdate.client_event_id ?? ''))
+  checks.push(
+    shapeOk
+      ? check('Reports { updates: [{ api_name, op, client_event_id }] }', 'pass', `${TEST_ACHIEVEMENT} → unlock`)
+      : check(
+          'Reports { updates: [{ api_name, op, client_event_id }] }',
+          'fail',
+          first ? `unexpected body: ${first.rawBody.slice(0, 200)}` : 'the test achievement was never reported',
+        ),
+  )
+
+  const retried = postCalls[1]?.parsed?.updates?.some((u) => u.client_event_id === firstUpdate?.client_event_id)
+  checks.push(
+    retried
+      ? check('Retries a failed report with the same client_event_id', 'pass')
+      : check(
+          'Retries a failed report with the same client_event_id',
+          'fail',
+          postCalls.length < 2 ? 'no retry after the 500 — the report was lost' : 'the retry used a different client_event_id (would count twice)',
+        ),
+  )
+
+  checks.push(
+    exitedEarly
+      ? check('Kept playing when an achievement report failed', 'fail', 'the game quit — only the heartbeat may end the session')
+      : check('Kept playing when an achievement report failed', 'pass'),
+  )
+
+  return result(title, checks, null)
+}
+
 const SCENARIOS = [
   { id: 1, title: 'Valid session — heartbeat shape, headers & cadence', run: scenarioValid },
   { id: 2, title: '403 → quit (single-session / access lost)', run: scenario403 },
   { id: 3, title: 'Transient failure tolerated (one 5xx, then recovers)', run: scenarioTolerate },
   { id: 4, title: 'Repeated failures → quit (after ~2 consecutive)', run: scenarioEscalate },
   { id: 5, title: 'Missing -key → quit immediately, no heartbeat', run: scenarioMissingKey },
+  { id: 6, title: 'Achievements — reported, retried, never counted twice', run: scenarioAchievements },
 ]
 
 module.exports = { SCENARIOS }

@@ -1,7 +1,7 @@
 # Boly game integration verifier
 
 A small command-line tool that checks a game build correctly implements the Boly
-license **heartbeat** (the `ParamsCatcher` script) **before** you hand the build to
+license **heartbeat** (the Boly SDK, or a legacy `ParamsCatcher` script) **before** you hand the build to
 Boly to upload. It runs a local fake of the validate endpoint, launches your game
 pointed at it, and verifies the game heartbeats and quits exactly as the contract
 requires — all offline, in seconds.
@@ -19,12 +19,13 @@ header, not quitting on `403`, or quitting on the first network hiccup.
 | 3 | Transient tolerated | One `5xx`/network failure does **not** kill the game; it recovers |
 | 4 | Repeated failures → quit | The game exits after ~2 consecutive failures |
 | 5 | Missing `-key` | The game refuses to start and sends no heartbeat |
+| 6 | Achievements (Boly SDK 0.2+) | Launched with the test-only `-boly_test_achievement BOLY_VERIFIER_TEST`, the game syncs (`GET /v1/lumen/achievements`), reports the unlock with `X-Boly-Game-Id`/`X-Boly-Key` and a `client_event_id`, retries it with the **same** id after a `500`, and keeps playing. `SKIP` for ParamsCatcher scripts; `WARN` for SDK versions without achievements |
 
 ## Requirements on the build
 
 This tool relies on the optional `-api_base` (and `-heartbeat_seconds`) override
-added to the ParamsCatcher scripts in this folder. Make sure your build uses the
-current `ParamsCatcher` so it can be pointed at the local mock. These overrides are
+that the Boly SDK supports (as did the last ParamsCatcher scripts), so the build
+can be pointed at the local mock. These overrides are
 **test-only** — the production Boly launcher never sends them, so your game keeps
 talking to the real API in production.
 
@@ -111,14 +112,15 @@ sent:
           body: {"game_id":5,"key":"<hex>"}
 ```
 
-A `FAIL` on scenario 1 "Game sent a heartbeat" almost always means the
-`ParamsCatcher` isn't running in the **first** scene/level, or isn't reading
-`-api_base`.
+A `FAIL` on scenario 1 "Game sent a heartbeat" almost always means the SDK
+isn't in the build (Unity: package missing or *Enabled In Builds* off; Godot:
+plugin not enabled; GameMaker: `obj_boly` not in the first room), or an old
+integration isn't reading `-api_base`.
 
 > Note: scenarios open and close your game window several times — that's expected.
 > The tool kills each instance when the scenario is done. Test against a real
-> **build**, not the editor (in the Unity editor `Application.Quit()` does nothing,
-> so the quit checks won't pass).
+> **build**, not the editor (in the editor the SDK skips Boly entirely, so the
+> session checks can't run).
 
 ## Building the binaries (Boly maintainers only)
 

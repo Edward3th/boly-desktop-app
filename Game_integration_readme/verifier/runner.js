@@ -16,11 +16,13 @@ function makeKey() {
 // Spawns the game and returns a handle. `state` is mutated as the process runs.
 // `launcher` is an optional prefix command (e.g. "wine") used to run a Windows
 // .exe on Linux/macOS — when set, we spawn `launcher gamePath ...args`.
-function launchGame({ gamePath, gameId, key, port, heartbeat, includeKey = true, launcher = null }) {
+// `extraArgs` carries test-only flags such as -boly_test_achievement.
+function launchGame({ gamePath, gameId, key, port, heartbeat, includeKey = true, launcher = null, extraArgs = [] }) {
   const args = ['-game_id', String(gameId)]
   if (includeKey) args.push('-key', key)
   args.push('-api_base', `http://127.0.0.1:${port}`)
   if (heartbeat != null) args.push('-heartbeat_seconds', String(heartbeat))
+  args.push(...extraArgs)
 
   // No shell: spawn handles a gamePath with spaces correctly on its own.
   const cmd = launcher || gamePath

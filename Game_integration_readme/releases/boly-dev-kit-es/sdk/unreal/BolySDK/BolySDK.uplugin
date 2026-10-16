@@ -1,0 +1,23 @@
+{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "0.1.0",
+	"FriendlyName": "Boly SDK",
+	"Description": "Licencia (heartbeat) y LumenAI para juegos publicados en Boly. Reemplaza al ValidationSubsystem (ParamsCatcher).",
+	"Category": "Boly",
+	"CreatedBy": "Boly",
+	"CreatedByURL": "https://boly.cl",
+	"DocsURL": "",
+	"MarketplaceURL": "",
+	"SupportURL": "",
+	"CanContainContent": false,
+	"IsBetaVersion": true,
+	"Installed": false,
+	"Modules": [
+		{
+			"Name": "BolySDK",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	]
+}
