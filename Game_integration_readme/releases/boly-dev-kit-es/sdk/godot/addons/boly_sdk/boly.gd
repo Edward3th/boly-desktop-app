@@ -9,6 +9,9 @@ extends Node
 ##       if Boly.is_ready: _empezar()
 ##       else: Boly.session_ready.connect(_empezar)
 ##       Boly.session_ended.connect(func(_razon): _guardar_partida())
+##       Boly.achievement_unlocked.connect(func(id, _actual, _meta): _mostrar_popup(id))
+##
+##   Boly.unlock_achievement(BolyAchievements.NIVEL_5_COMPLETO)
 
 ## Por que termino la sesion. El SDK cierra el juego justo despues de avisar.
 enum EndReason {
@@ -21,15 +24,22 @@ enum EndReason {
 signal session_ready
 ## Se emite justo antes de cerrar el juego. Ultima oportunidad para guardar.
 signal session_ended(reason: EndReason)
+## El servidor confirmo un logro recien desbloqueado (una vez por logro y
+## jugador): buen momento para un popup.
+signal achievement_unlocked(api_name: String, current: int, target: int)
+## Llego el estado de los logros desde el servidor, al iniciar la sesion.
+signal achievements_synced
 
-const VERSION := "0.1.0"
+const VERSION := "0.2.0"
 ## Escena que se carga cuando la sesion queda lista ("" = ninguna). Equivale al
 ## flujo AuthScene -> MainGame del ParamsCatcher.
 const SETTING_SCENE_ON_READY := "boly/scene_on_ready"
 
 const _DEFAULT_API_BASE := "https://ffstudios-shop-api.vercel.app"
 const _HEARTBEAT_PATH := "/v1/validate/validate"
+const _ACHIEVEMENTS_PATH := "/v1/lumen/achievements"
 const _MAX_CONSECUTIVE_FAILURES := 4
+const _MAX_BATCH := 50
 ## Una peticion colgada cuenta como fallo en vez de detener el heartbeat.
 const _REQUEST_TIMEOUT_SECONDS := 15.0
 
@@ -45,6 +55,8 @@ var learner_id := ""
 var subscription_access := false
 ## true al correr en el editor sin -key: sin red ni sesion real.
 var is_editor := false
+## true cuando ya llego el estado de los logros desde el servidor.
+var achievements_in_sync := false
 
 # La UNICA credencial. -token (JWT legado) se ignora a proposito: no se lee,
 # no se guarda y nunca se reenvia.
@@ -52,6 +64,9 @@ var _key := ""
 # Solo para pruebas: el verifier los envia, el launcher de produccion no.
 var _api_base := _DEFAULT_API_BASE
 var _heartbeat_seconds := 60.0
+# Solo para el verifier: logro a desbloquear apenas la sesion este lista. Se
+# ignora salvo que _api_base apunte a este mismo equipo.
+var _test_achievement := ""
 
 var _first_validation := true
 var _consecutive_failures := 0
@@ -59,6 +74,18 @@ var _ending := false
 var _http: HTTPRequest
 var _server_unix_at_sync := -1.0
 var _ticks_at_sync := 0
+
+# Logros. Cola de operaciones pendientes, guardada en disco por juego y por
+# alumno: en un PC compartido, lo pendiente de un alumno solo se envia en una
+# sesion de ese mismo alumno. Antes del primer heartbeat solo vive en memoria.
+var _achievement_states := {}  # api_name -> {"current", "target", "unlocked"}
+var _pending: Array = []       # [{"client_event_id", "api_name", "op", "value"?}]
+var _pending_file := ""
+var _achievements_session := false
+var _flushing := false
+var _flush_scheduled := false
+var _achievements_http: HTTPRequest
+var _api_name_re := RegEx.create_from_string("^[A-Z][A-Z0-9_]{0,63}$")
 
 
 func _ready() -> void:
@@ -83,6 +110,11 @@ func _ready() -> void:
 	add_child(_http)
 	_http.request_completed.connect(_on_request_completed)
 
+	# Un HTTPRequest atiende una peticion a la vez: los logros van por otro.
+	_achievements_http = HTTPRequest.new()
+	_achievements_http.timeout = _REQUEST_TIMEOUT_SECONDS
+	add_child(_achievements_http)
+
 	var timer := Timer.new()
 	timer.wait_time = _heartbeat_seconds
 	timer.autostart = true
@@ -103,6 +135,251 @@ func server_now_unix() -> float:
 	return _server_unix_at_sync + (Time.get_ticks_msec() - _ticks_at_sync) / 1000.0
 
 
+# ── Logros (spec/PROTOCOL.md §5) ────────────────────────────────────────────
+# Se definen en boly.cl (panel ▸ juego ▸ logros); descarga alli
+# boly_achievements.gd para no escribir los nombres a mano. Las llamadas nunca
+# bloquean: se encolan y se envian apenas hay sesion y red.
+
+## Desbloquea el logro (lleva el progreso a la meta).
+func unlock_achievement(api_name: String) -> void:
+	_report_achievement(api_name, "unlock", 0, false)
+
+
+## Suma `amount` al progreso (ej. una respuesta correcta mas).
+func increment_achievement(api_name: String, amount: int = 1) -> void:
+	if amount <= 0:
+		push_warning("[Boly] increment_achievement(%s) necesita un amount mayor que 0." % api_name)
+		return
+	_report_achievement(api_name, "increment", amount, true)
+
+
+## Fija el progreso en `value` (ej. estrellas acumuladas). Nunca baja.
+func set_achievement_progress(api_name: String, value: int) -> void:
+	if value < 0:
+		push_warning("[Boly] set_achievement_progress(%s) necesita un value mayor o igual a 0." % api_name)
+		return
+	_report_achievement(api_name, "set", value, true)
+
+
+func is_achievement_unlocked(api_name: String) -> bool:
+	return _achievement_states.has(api_name) and _achievement_states[api_name]["unlocked"]
+
+
+## Estado conocido: {"current", "target", "unlocked"}, o {} si no se conoce.
+func get_achievement(api_name: String) -> Dictionary:
+	return _achievement_states.get(api_name, {})
+
+
+## Operaciones que el servidor aun no confirma.
+func pending_achievements() -> int:
+	return _pending.size()
+
+
+func _report_achievement(api_name: String, op: String, value: int, has_value: bool) -> void:
+	# Un nombre que no cumple el formato no puede existir en boly.cl: es un
+	# error de tipeo, asi que ni se envia.
+	if _api_name_re.search(api_name) == null:
+		push_error("[Boly] \"%s\" no es un api_name valido (A-Z, 0-9 y _). Usa las constantes de boly_achievements.gd." % api_name)
+		return
+
+	if is_editor:
+		# En el editor no se envia nada; un unlock emite la senal para probar el popup.
+		print("[Boly] (editor) %s %s — no se envia a Boly." % [op, api_name])
+		if op == "unlock" and not is_achievement_unlocked(api_name):
+			_achievement_states[api_name] = {"current": 1, "target": 1, "unlocked": true}
+			achievement_unlocked.emit(api_name, 1, 1)
+		return
+
+	if _achievements_http == null:
+		push_warning("[Boly] Sin sesion de Boly: el logro %s no se envia." % api_name)
+		return
+
+	var entry := {"client_event_id": _new_uuid(), "api_name": api_name, "op": op}
+	if has_value:
+		entry["value"] = value
+	_pending.append(entry)
+	_save_pending()
+	_schedule_flush()
+
+
+# Con el primer heartbeat valido ya se sabe quien juega: recupera lo pendiente
+# de ese alumno, sincroniza y envia.
+func _start_achievements() -> void:
+	if learner_id != "":
+		_pending_file = "user://boly/achievements-%d-%s.json" % [game_id, learner_id]
+		_load_pending()
+		_save_pending()
+	_achievements_session = true
+	await _sync_achievements()
+	await _flush_achievements()
+
+
+func _schedule_flush() -> void:
+	if not _achievements_session or _flush_scheduled:
+		return
+	_flush_scheduled = true
+	# Diferido: varias llamadas seguidas viajan en un solo lote.
+	_run_scheduled_flush.call_deferred()
+
+
+func _run_scheduled_flush() -> void:
+	_flush_scheduled = false
+	await _flush_achievements()
+
+
+func _achievements_request(method: int, body: String) -> Array:
+	var headers := [
+		"Content-Type: application/json",
+		"X-Boly-Game-Id: %d" % game_id,
+		"X-Boly-Key: " + _key,
+		"X-Boly-SDK: godot/" + VERSION,
+	]
+	var error := _achievements_http.request(_api_base + _ACHIEVEMENTS_PATH, headers, method, body)
+	if error != OK:
+		return [HTTPRequest.RESULT_CANT_CONNECT, 0, ""]
+	var done: Array = await _achievements_http.request_completed
+	return [done[0], done[1], (done[3] as PackedByteArray).get_string_from_utf8()]
+
+
+func _sync_achievements() -> void:
+	var response := await _achievements_request(HTTPClient.METHOD_GET, "")
+	if response[0] != HTTPRequest.RESULT_SUCCESS or response[1] != 200:
+		return
+	var data = JSON.parse_string(response[2])
+	if typeof(data) != TYPE_DICTIONARY or not (data.get("achievements") is Array):
+		return
+	for a in data["achievements"]:
+		if a is Dictionary and a.get("api_name") is String:
+			_set_state(a["api_name"], a.get("current", 0), a.get("target", 1), a.get("unlocked", false) == true)
+	achievements_in_sync = true
+	achievements_synced.emit()
+
+
+func _flush_achievements() -> void:
+	if _flushing or not _achievements_session:
+		return
+	_flushing = true
+	while not _pending.is_empty():
+		var batch := _pending.slice(0, mini(_MAX_BATCH, _pending.size()))
+		var response := await _achievements_request(HTTPClient.METHOD_POST, JSON.stringify({"updates": batch}))
+		if response[0] == HTTPRequest.RESULT_SUCCESS and response[1] == 200:
+			_apply_results(batch, response[2])
+			continue
+		if response[0] == HTTPRequest.RESULT_SUCCESS and response[1] == 400:
+			# El lote completo es invalido: reintentarlo nunca funcionaria.
+			push_error("[Boly] El servidor rechazo un lote de logros (400): " + response[2])
+			_remove_batch(batch)
+			continue
+		# Sin red, 5xx, 429 o sesion rechazada (403): se conserva y se reintenta
+		# con el proximo heartbeat (o en la proxima sesion de este alumno).
+		break
+	_flushing = false
+
+
+func _apply_results(batch: Array, text: String) -> void:
+	var data = JSON.parse_string(text)
+	var results: Array = data.get("results", []) if typeof(data) == TYPE_DICTIONARY else []
+	var unlocked: Array = []
+	# Cada resultado corresponde, en orden, a una operacion del lote.
+	for i in range(mini(batch.size(), results.size())):
+		var r = results[i]
+		if not (r is Dictionary):
+			continue
+		var api_name := str(r.get("api_name", ""))
+		match str(r.get("status", "")):
+			"ok", "duplicate":
+				_set_state(api_name, r.get("current", 0), r.get("target", 1), r.get("unlocked", false) == true)
+				if r.get("newly_unlocked", false) == true:
+					unlocked.append(api_name)
+			"unknown":
+				push_error("[Boly] El logro \"%s\" no existe en este juego. Revisa el api_name en boly.cl o descarga de nuevo boly_achievements.gd." % api_name)
+			"retired":
+				push_warning("[Boly] El logro \"%s\" fue retirado en boly.cl; se ignora." % api_name)
+			_:
+				push_error("[Boly] Operacion de logro invalida para \"%s\"." % api_name)
+	_remove_batch(batch)
+	# Despues de sacar el lote de la cola, asi pending_achievements() ya es el real.
+	for api_name in unlocked:
+		var state: Dictionary = _achievement_states[api_name]
+		achievement_unlocked.emit(api_name, state["current"], state["target"])
+
+
+func _set_state(api_name: String, current, target, unlocked: bool) -> void:
+	_achievement_states[api_name] = {
+		"current": int(round(float(current))),
+		"target": int(round(float(target))),
+		"unlocked": unlocked,
+	}
+
+
+func _remove_batch(batch: Array) -> void:
+	var sent := {}
+	for entry in batch:
+		sent[entry["client_event_id"]] = true
+	_pending = _pending.filter(func(entry): return not sent.has(entry["client_event_id"]))
+	_save_pending()
+
+
+func _load_pending() -> void:
+	if not FileAccess.file_exists(_pending_file):
+		return
+	var file := FileAccess.open(_pending_file, FileAccess.READ)
+	if file == null:
+		return
+	var saved = JSON.parse_string(file.get_as_text())
+	if not (saved is Array):
+		return
+	# Lo pendiente de sesiones anteriores va primero, en su orden original.
+	var current := {}
+	for entry in _pending:
+		current[entry["client_event_id"]] = true
+	var older: Array = []
+	for entry in saved:
+		if entry is Dictionary and entry.get("client_event_id") is String and not current.has(entry["client_event_id"]):
+			if entry.has("value"):
+				entry["value"] = int(entry["value"])  # JSON devuelve float
+			older.append(entry)
+	_pending = older + _pending
+
+
+func _save_pending() -> void:
+	if _pending_file == "":
+		return
+	if _pending.is_empty():
+		if FileAccess.file_exists(_pending_file):
+			DirAccess.remove_absolute(_pending_file)
+		return
+	DirAccess.make_dir_recursive_absolute("user://boly")
+	var file := FileAccess.open(_pending_file, FileAccess.WRITE)
+	if file == null:
+		push_warning("[Boly] No se pudo guardar la cola de logros.")
+		return
+	file.store_string(JSON.stringify(_pending))
+
+
+# UUID v4 para client_event_id.
+func _new_uuid() -> String:
+	var b := Crypto.new().generate_random_bytes(16)
+	b[6] = (b[6] & 0x0f) | 0x40
+	b[8] = (b[8] & 0x3f) | 0x80
+	var h := b.hex_encode()
+	return "%s-%s-%s-%s-%s" % [h.substr(0, 8), h.substr(8, 4), h.substr(12, 4), h.substr(16, 4), h.substr(20, 12)]
+
+
+# true solo si el API es un servidor local (el mock del verifier).
+func _test_achievement_allowed() -> bool:
+	if _test_achievement == "":
+		return false
+	var host := _api_base.get_slice("://", 1).get_slice("/", 0)
+	if host.begins_with("["):
+		host = host.get_slice("]", 0).trim_prefix("[")
+	else:
+		host = host.get_slice(":", 0)
+	return host == "localhost" or host == "::1" or host.begins_with("127.")
+
+
+# ── Sesion ───────────────────────────────────────────────────────────────────
+
 func _parse_args(args: PackedStringArray) -> void:
 	for i in range(args.size() - 1):
 		var value := args[i + 1]
@@ -116,6 +393,8 @@ func _parse_args(args: PackedStringArray) -> void:
 			"-heartbeat_seconds":
 				if value.to_float() > 0.0:
 					_heartbeat_seconds = value.to_float()
+			"-boly_test_achievement":
+				_test_achievement = value
 
 
 func _send_heartbeat() -> void:
@@ -138,6 +417,9 @@ func _on_request_completed(result: int, response_code: int, _headers: PackedStri
 		if _first_validation:
 			_first_validation = false
 			_become_ready()
+		elif not _pending.is_empty():
+			# Hay red y sesion: buen momento para reintentar lo pendiente.
+			_schedule_flush()
 		return
 
 	# 403 = sesion invalida / reemplazada / expirada / sin acceso. Si falla la
@@ -183,6 +465,11 @@ func _become_ready() -> void:
 		return
 	is_ready = true
 	session_ready.emit()
+
+	if _achievements_http != null:
+		_start_achievements()
+		if _test_achievement_allowed():
+			unlock_achievement(_test_achievement)
 
 	var scene: String = ProjectSettings.get_setting(SETTING_SCENE_ON_READY, "")
 	if scene != "":

@@ -562,30 +562,33 @@ BolySDK.Achievements.OnUnlocked += a =&gt; ShowPopup(a.ApiName);</div>
              jugador, así en un PC compartido del colegio nunca se mezclan alumnos) y se envía apenas hay sesión y conexión.
              En el editor no se envía nada; <i>Unlock</i> dispara <i>OnUnlocked</i> localmente para probar tu popup.</p>
         </div>
-        <div class="engine-only" data-engine="godot"><div class="callout warn"><span class="ico">⏳</span>
-          <div>
-            <span data-lang="en">Achievements for Godot are on the way (Unity has them first). You can already define them on
-            boly.cl; the next SDK update adds the calls.</span>
-            <span data-lang="es">Los logros para Godot vienen en camino (Unity los tiene primero). Ya puedes definirlos en
-            boly.cl; la próxima actualización del SDK agrega las llamadas.</span>
-          </div>
-        </div></div>
-        <div class="engine-only" data-engine="unreal"><div class="callout warn"><span class="ico">⏳</span>
-          <div>
-            <span data-lang="en">Achievements for Unreal are on the way (Unity has them first). You can already define them on
-            boly.cl; the next SDK update adds the calls.</span>
-            <span data-lang="es">Los logros para Unreal vienen en camino (Unity los tiene primero). Ya puedes definirlos en
-            boly.cl; la próxima actualización del SDK agrega las llamadas.</span>
-          </div>
-        </div></div>
-        <div class="engine-only" data-engine="gamemaker"><div class="callout warn"><span class="ico">⏳</span>
-          <div>
-            <span data-lang="en">Achievements for GameMaker are on the way (Unity has them first). You can already define them
-            on boly.cl; the next SDK update adds the calls.</span>
-            <span data-lang="es">Los logros para GameMaker vienen en camino (Unity los tiene primero). Ya puedes definirlos en
-            boly.cl; la próxima actualización del SDK agrega las llamadas.</span>
-          </div>
-        </div></div>
+        <div class="engine-only" data-engine="godot">
+<div class="code">Boly.unlock_achievement(BolyAchievements.NIVEL_5_COMPLETO)
+Boly.increment_achievement(BolyAchievements.RESPONDER_100)      # +1
+Boly.set_achievement_progress(BolyAchievements.ESTRELLAS, 12)   # never goes down
+
+Boly.achievement_unlocked.connect(func(id, _current, _target): _show_popup(id))</div>
+          <p class="hint" data-lang="en">Achievements for Godot are new in this SDK version: run the verifier (Step&nbsp;4, scenario 6) before you ship.</p>
+          <p class="hint" data-lang="es">Los logros de Godot son nuevos en esta versión del SDK: pasa el verificador (Paso&nbsp;4, escenario 6) antes de publicar.</p>
+        </div>
+        <div class="engine-only" data-engine="unreal">
+<div class="code">Boly-&gt;UnlockAchievement(BolyAchievements::NIVEL_5_COMPLETO);
+Boly-&gt;IncrementAchievement(BolyAchievements::RESPONDER_100);     // +1
+Boly-&gt;SetAchievementProgress(BolyAchievements::ESTRELLAS, 12);   // never goes down
+
+Boly-&gt;OnAchievementUnlocked.AddDynamic(this, &amp;AMyActor::ShowPopup);</div>
+          <p class="hint" data-lang="en">Achievements for Unreal are new in this SDK version: run the verifier (Step&nbsp;4, scenario 6) before you ship. In Blueprint use the <i>Boly | Achievements</i> nodes.</p>
+          <p class="hint" data-lang="es">Los logros de Unreal son nuevos en esta versión del SDK: pasa el verificador (Paso&nbsp;4, escenario 6) antes de publicar. En Blueprint usa los nodos de <i>Boly | Achievements</i>.</p>
+        </div>
+        <div class="engine-only" data-engine="gamemaker">
+<div class="code">boly_achievement_unlock(BOLY_ACH_NIVEL_5_COMPLETO);
+boly_achievement_increment(BOLY_ACH_RESPONDER_100);      // +1
+boly_achievement_set(BOLY_ACH_ESTRELLAS, 12);            // never goes down
+
+boly_on_achievement_unlocked(function(_id, _current, _target) { show_popup(_id); });</div>
+          <p class="hint" data-lang="en">Achievements for GameMaker are new in this SDK version: run the verifier (Step&nbsp;4, scenario 6) before you ship.</p>
+          <p class="hint" data-lang="es">Los logros de GameMaker son nuevos en esta versión del SDK: pasa el verificador (Paso&nbsp;4, escenario 6) antes de publicar.</p>
+        </div>
       </div>
     </div>
 
@@ -706,9 +709,12 @@ BolySDK.Achievements.OnUnlocked += a =&gt; ShowPopup(a.ApiName);</div>
           <b>Paso 1</b>.</p></details>
         <details class="ts"><summary><span class="badge fail">FAIL</span><span data-lang="en">Achievements</span><span data-lang="es">Logros</span></summary>
           <p data-lang="en">Use the SDK files from this kit unchanged — the retry and the session headers are built in. A
-          <b>WARN</b> (not a failure) just means your engine's SDK doesn't have achievements yet.</p>
+          <b>WARN</b> (not a failure) means the build has an older SDK without achievements: copy this kit's SDK again.
+          Still red with the kit's SDK? Tell your Boly contact and send the verifier output.</p>
           <p data-lang="es">Usa los archivos del SDK de este kit sin cambios: el reintento y los headers de sesión ya vienen
-          incluidos. Un <b>WARN</b> (no es un fallo) solo significa que el SDK de tu motor todavía no tiene logros.</p></details>
+          incluidos. Un <b>WARN</b> (no es un fallo) significa que el build tiene un SDK anterior, sin logros: vuelve a
+          copiar el SDK de este kit. ¿Sigue en rojo con el SDK del kit? Avísale a tu referente en Boly y envíale el
+          resultado del verificador.</p></details>
         <p class="hint" style="margin-top:14px" data-lang="en">Want to see the real 60-second timing instead of the fast
            test cadence? Add <span class="gid">--real-cadence</span> (it just takes a few minutes).</p>
         <p class="hint" style="margin-top:14px" data-lang="es">¿Quieres ver el tiempo real de 60 segundos en vez de la cadencia

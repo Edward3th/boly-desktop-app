@@ -20,6 +20,8 @@ enum class EBolyEndReason : uint8
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FBolyReadySignature);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FBolySessionEndedSignature, EBolyEndReason, Reason);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_ThreeParams(FBolyAchievementUnlockedSignature, const FString&, ApiName, int32, Current, int32, Target);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FBolyAchievementsSyncedSignature);
 
 // Boly SDK para Unreal. Un UGameInstanceSubsystem se crea solo con el
 // GameInstance y persiste entre niveles; el heartbeat usa FTSTicker (global,
@@ -29,6 +31,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FBolySessionEndedSignature, EBolyEnd
 // Uso tipico (C++):
 //   UBolySubsystem* Boly = GetGameInstance()->GetSubsystem<UBolySubsystem>();
 //   if (Boly->IsReady()) Empezar(); else Boly->OnReady.AddDynamic(this, &AMiActor::Empezar);
+//   Boly->UnlockAchievement(BolyAchievements::NIVEL_5_COMPLETO);
 // En Blueprint: "Get Game Instance Subsystem" (Boly Subsystem) > Bind Event to On Ready.
 UCLASS()
 class BOLYSDK_API UBolySubsystem : public UGameInstanceSubsystem
@@ -36,7 +39,7 @@ class BOLYSDK_API UBolySubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
-	static constexpr const TCHAR* SdkVersion = TEXT("0.1.0");
+	static constexpr const TCHAR* SdkVersion = TEXT("0.2.0");
 
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
@@ -79,6 +82,44 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Boly")
 	FBolySessionEndedSignature OnSessionEnded;
 
+	// ── Logros (spec/PROTOCOL.md §5) ───────────────────────────────────────
+	// Se definen en boly.cl (panel > juego > logros); descarga alli
+	// BolyAchievements.h para no escribir los nombres a mano. Las llamadas
+	// nunca bloquean: se guardan en una cola en disco (separada por alumno) y
+	// se envian apenas hay sesion y red, sin contar dos veces al reintentar.
+
+	// Desbloquea el logro (lleva el progreso a la meta).
+	UFUNCTION(BlueprintCallable, Category = "Boly|Achievements")
+	void UnlockAchievement(const FString& ApiName);
+
+	// Suma Amount al progreso (ej. una respuesta correcta mas).
+	UFUNCTION(BlueprintCallable, Category = "Boly|Achievements")
+	void IncrementAchievement(const FString& ApiName, int32 Amount = 1);
+
+	// Fija el progreso en Value (ej. estrellas acumuladas). Nunca baja.
+	UFUNCTION(BlueprintCallable, Category = "Boly|Achievements")
+	void SetAchievementProgress(const FString& ApiName, int32 Value);
+
+	UFUNCTION(BlueprintPure, Category = "Boly|Achievements")
+	bool IsAchievementUnlocked(const FString& ApiName) const;
+
+	// Progreso y meta conocidos; false si el logro aun no se conoce.
+	UFUNCTION(BlueprintPure, Category = "Boly|Achievements")
+	bool GetAchievementProgress(const FString& ApiName, int32& Current, int32& Target) const;
+
+	// Operaciones que el servidor aun no confirma.
+	UFUNCTION(BlueprintPure, Category = "Boly|Achievements")
+	int32 GetPendingAchievementCount() const { return PendingOps.Num(); }
+
+	// El servidor confirmo un logro recien desbloqueado (una vez por logro y
+	// jugador): buen momento para un popup.
+	UPROPERTY(BlueprintAssignable, Category = "Boly|Achievements")
+	FBolyAchievementUnlockedSignature OnAchievementUnlocked;
+
+	// Llego el estado de los logros desde el servidor, al iniciar la sesion.
+	UPROPERTY(BlueprintAssignable, Category = "Boly|Achievements")
+	FBolyAchievementsSyncedSignature OnAchievementsSynced;
+
 private:
 	// La UNICA credencial. -token (JWT legado) se ignora a proposito: no se
 	// parsea, no se guarda y nunca se reenvia.
@@ -87,6 +128,9 @@ private:
 	// Solo para pruebas: el verifier los envia, el launcher de produccion no.
 	FString ApiBase = TEXT("https://ffstudios-shop-api.vercel.app");
 	float HeartbeatSeconds = 60.0f;
+	// Solo para el verifier: logro a desbloquear apenas la sesion este lista.
+	// Se ignora salvo que ApiBase apunte a este mismo equipo.
+	FString TestAchievement;
 
 	FString SessionId;
 	FString LearnerId;
@@ -104,6 +148,42 @@ private:
 	double PlatformSecondsAtSync = 0.0;
 
 	FTSTicker::FDelegateHandle TickerHandle;
+
+	struct FPendingOp
+	{
+		FString ClientEventId;
+		FString ApiName;
+		FString Op;
+		int32 Value = 0;
+		bool bHasValue = false;
+	};
+
+	struct FAchievementState
+	{
+		int32 Current = 0;
+		int32 Target = 1;
+		bool bUnlocked = false;
+	};
+
+	// Cola guardada en Saved/Boly por juego y por alumno: en un PC compartido,
+	// lo pendiente de un alumno solo se envia en una sesion de ese alumno.
+	TArray<FPendingOp> PendingOps;
+	TMap<FString, FAchievementState> AchievementStates;
+	FString PendingFile;
+	bool bAchievementsSession = false;
+	bool bFlushing = false;
+	int32 InFlightCount = 0;
+
+	void ReportAchievement(const FString& ApiName, const FString& Op, int32 Value, bool bHasValue);
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> MakeAchievementsRequest(const FString& Verb) const;
+	void StartAchievements();
+	void SyncAchievements();
+	void FlushAchievements();
+	void OnFlushResponse(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful);
+	void RemoveFirstPending(int32 Count);
+	void LoadPending();
+	void SavePending() const;
+	bool IsTestAchievementAllowed() const;
 
 	void ParseCommandLine();
 	bool Tick(float DeltaTime);

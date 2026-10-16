@@ -14,11 +14,22 @@ key = "";
 // Solo para pruebas: el verifier los envia, el launcher de produccion no.
 api_base = "https://ffstudios-shop-api.vercel.app";
 heartbeat_seconds = 60;
+// Solo para el verifier: logro a desbloquear apenas la sesion este lista. Se
+// ignora salvo que api_base apunte a este mismo equipo.
+test_achievement = "";
 
 first_validation = true;
 consecutive_failures = 0;
 ending = false;
 request_id = -1;
+
+// Logros: una peticion a la vez, aparte del heartbeat.
+ach_request_id = -1;
+ach_request_kind = "";
+ach_request_time = 0;
+ach_in_flight = 0;
+ach_session = false;
+ach_flush_scheduled = false;
 
 // Argumentos de linea de comandos (parameter_string es 1-indexado). Van
 // separados por espacio: "-key abc".
@@ -36,6 +47,8 @@ for (var _i = 1; _i < _n; _i++) {
         if (string_char_at(api_base, string_length(api_base)) == "/") {
             api_base = string_copy(api_base, 1, string_length(api_base) - 1);
         }
+    } else if (_arg == "-boly_test_achievement") {
+        test_achievement = _value;
     } else if (_arg == "-heartbeat_seconds") {
         try {
             if (real(_value) > 0) heartbeat_seconds = real(_value);
@@ -83,6 +96,77 @@ end_session = function(_reason) {
     if (ending) return;
     ending = true;
     __boly_end_session(_reason);
+};
+
+// ── Logros ───────────────────────────────────────────────────────────────────
+
+ach_request = function(_method, _body, _kind) {
+    var _headers = ds_map_create();
+    ds_map_add(_headers, "Content-Type", "application/json");
+    ds_map_add(_headers, "X-Boly-Game-Id", string(global.__boly.game_id));
+    ds_map_add(_headers, "X-Boly-Key", key);
+    ds_map_add(_headers, "X-Boly-SDK", "gamemaker/" + BOLY_VERSION);
+    ach_request_kind = _kind;
+    ach_request_time = current_time;
+    ach_request_id = http_request(api_base + "/v1/lumen/achievements", _method, _headers, _body);
+    ds_map_destroy(_headers);
+};
+
+// Con el primer heartbeat valido ya se sabe quien juega: recupera lo pendiente
+// de ese alumno y sincroniza; al responder, envia (ver Async HTTP).
+ach_start = function() {
+    var _b = global.__boly;
+    if (_b.learner_id != "") {
+        _b.pending_file = "boly_achievements_" + string(_b.game_id) + "_" + _b.learner_id + ".json";
+        __boly_load_pending();
+        __boly_save_pending();
+    }
+    ach_session = true;
+    ach_request("GET", "", "sync");
+};
+
+ach_flush = function() {
+    var _pending = global.__boly.pending;
+    if (!ach_session || ending || ach_request_id != -1 || array_length(_pending) == 0) return;
+    ach_in_flight = min(50, array_length(_pending));
+    var _batch = array_create(ach_in_flight);
+    array_copy(_batch, 0, _pending, 0, ach_in_flight);
+    ach_request("POST", json_stringify({ updates: _batch }), "flush");
+};
+
+// Un frame despues: varias llamadas seguidas viajan en un solo lote.
+ach_schedule_flush = function() {
+    if (!ach_session || ach_flush_scheduled) return;
+    ach_flush_scheduled = true;
+    call_later(1, time_source_units_frames, function() {
+        ach_flush_scheduled = false;
+        ach_flush();
+    });
+};
+
+// Tras cada heartbeat valido: reintenta lo pendiente. http_request no tiene
+// timeout, asi que una peticion de logros colgada mas de 30 s se abandona (su
+// respuesta tardia se ignora; los client_event_id evitan contar dos veces).
+ach_retry = function() {
+    if (ach_request_id != -1 && current_time - ach_request_time > 30000) ach_request_id = -1;
+    ach_flush();
+};
+
+// true solo si el API es un servidor local (el mock del verifier).
+test_achievement_allowed = function() {
+    if (test_achievement == "") return false;
+    var _host = api_base;
+    var _scheme = string_pos("://", _host);
+    if (_scheme > 0) _host = string_delete(_host, 1, _scheme + 2);
+    var _slash = string_pos("/", _host);
+    if (_slash > 0) _host = string_copy(_host, 1, _slash - 1);
+    if (string_char_at(_host, 1) == "[") {
+        _host = string_copy(_host, 2, string_pos("]", _host) - 2);
+    } else {
+        var _colon = string_pos(":", _host);
+        if (_colon > 0) _host = string_copy(_host, 1, _colon - 1);
+    }
+    return _host == "localhost" || _host == "::1" || string_copy(_host, 1, 4) == "127.";
 };
 
 if (key == "") {

@@ -72,9 +72,9 @@ copy in `sdk/` (see [Building the kit](#building-the-kit)).
 | Engine | In the kit | Goes to | Status |
 |---|---|---|---|
 | Unity 2021.3+ | `sdk/unity/cl.boly.sdk` | `Packages/cl.boly.sdk` | 0.2.0, with achievements. Verified (build passes all 6 verifier scenarios) |
-| Godot 4 | `sdk/godot/addons/boly_sdk` | `res://addons/boly_sdk` + enable the plugin | 0.1.0 (no achievements yet). New, not yet run in the engine |
-| Unreal 5 | `sdk/unreal/BolySDK` | `Plugins/BolySDK` | 0.1.0 (no achievements yet). New, not yet compiled |
-| GameMaker 2024+ | `sdk/gamemaker/` | script `boly_sdk` + persistent `obj_boly` in the first room | 0.1.0 (no achievements yet). New, not yet run in the engine |
+| Godot 4 | `sdk/godot/addons/boly_sdk` | `res://addons/boly_sdk` + enable the plugin | 0.2.0, with achievements. New, not yet run in the engine |
+| Unreal 5 | `sdk/unreal/BolySDK` | `Plugins/BolySDK` | 0.2.0, with achievements. New, not yet compiled |
+| GameMaker 2024+ | `sdk/gamemaker/` | script `boly_sdk` + persistent `obj_boly` in the first room | 0.2.0, with achievements. New, not yet run in the engine |
 
 Each engine folder has a `README.md` with setup and API. The old per-engine
 `ParamsCatcher` scripts are in [`legacy-paramscatcher/`](./legacy-paramscatcher/)

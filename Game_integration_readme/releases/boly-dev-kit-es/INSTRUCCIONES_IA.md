@@ -129,21 +129,24 @@ en consola; Unreal: compila el módulo) antes de seguir.
 
 ## Paso 2b: logros (opcional)
 
-Solo si la persona quiere logros y el motor es **Unity** (Godot, Unreal y
-GameMaker todavía no los tienen en el SDK).
+Solo si la persona quiere logros.
 
 - Los logros **no se crean desde el código**: la persona los define en
   **boly.cl ▸ Panel de Desarrollador ▸ su juego ▸ Gestionar logros** y descarga
-  ahí `BolyAchievements.cs`. Pídele ese archivo; no inventes `api_name`.
-- Agrega `BolyAchievements.cs` al proyecto y llama al SDK donde ocurre cada
-  logro (ej. al terminar el nivel 5):
-  ```csharp
-  BolySDK.Achievements.Unlock(BolyAchievements.NIVEL_5_COMPLETO);
-  BolySDK.Achievements.Increment(BolyAchievements.RESPONDER_100);     // +1
-  BolySDK.Achievements.SetProgress(BolyAchievements.ESTRELLAS, 12);   // nunca baja
-  ```
-- Si el juego muestra un aviso de logro, suscríbete a
-  `BolySDK.Achievements.OnUnlocked` (llega una sola vez por logro y jugador).
+  ahí el archivo de constantes de su motor. Pídele ese archivo; no inventes
+  `api_name`.
+- Agrega el archivo al proyecto y llama al SDK donde ocurre cada logro (ej. al
+  terminar el nivel 5):
+
+| Motor | Archivo de constantes | Desbloquear | Sumar | Fijar progreso | Aviso de desbloqueo |
+|---|---|---|---|---|---|
+| Unity | `BolyAchievements.cs` | `BolySDK.Achievements.Unlock(BolyAchievements.X)` | `.Increment(…, n)` | `.SetProgress(…, v)` | `BolySDK.Achievements.OnUnlocked` |
+| Godot | `boly_achievements.gd` | `Boly.unlock_achievement(BolyAchievements.X)` | `increment_achievement(…, n)` | `set_achievement_progress(…, v)` | señal `Boly.achievement_unlocked` |
+| Unreal | `BolyAchievements.h` | `Boly->UnlockAchievement(BolyAchievements::X)` | `IncrementAchievement(…, N)` | `SetAchievementProgress(…, V)` | delegado `OnAchievementUnlocked` |
+| GameMaker | `boly_achievements.gml` (Script) | `boly_achievement_unlock(BOLY_ACH_X)` | `boly_achievement_increment(…, n)` | `boly_achievement_set(…, v)` | `boly_on_achievement_unlocked(cb)` |
+
+- El progreso nunca baja y nunca pasa la meta; el aviso de desbloqueo llega una
+  sola vez por logro y jugador.
 - No agregues reintentos ni guardado propio: el SDK ya encola en disco y
   reintenta sin contar dos veces.
 
@@ -187,8 +190,8 @@ Desde la carpeta del kit (PowerShell):
 - Los 6 escenarios: sesión válida, 403 → cerrar, un fallo de red tolerado, fallos
   repetidos → cerrar, sin `-key` → cerrar sin enviar nada, y logros (el
   verificador desbloquea un logro de prueba y comprueba el reintento; no hay que
-  programar nada para eso). En motores cuyo SDK aún no tiene logros, el
-  escenario 6 sale como `WARN`/`SKIP`, no como fallo.
+  programar nada para eso). Un `WARN` en el escenario 6 indica un SDK anterior
+  sin logros: vuelve a copiar el SDK del kit.
 
 | Resultado | Causa probable | Qué hacer |
 |---|---|---|
@@ -197,7 +200,7 @@ Desde la carpeta del kit (PowerShell):
 | FAIL "Game quit on 403" o "Repeated failures" | Algo impide cerrar | Unity `Application.wantsToQuit`; código que se bloquea dentro de `OnSessionEnded` |
 | FAIL "Cadence is steady" | El heartbeat se detuvo | Cargas bloqueantes; usa carga asíncrona |
 | WARN "Identifies the SDK" | El build todavía usa ParamsCatcher | Termina el Paso 1 |
-| FAIL en "Achievements" | SDK modificado o incompleto | Vuelve a copiar el SDK del kit sin cambios; no envíes logros con tu propio código de red |
+| FAIL en "Achievements" | SDK modificado o incompleto | Vuelve a copiar el SDK del kit sin cambios; no envíes logros con tu propio código de red. En Godot, Unreal o GameMaker, si sigue fallando con el SDK del kit, repórtalo a la persona (posible error del SDK) |
 | FAIL en un motor nuevo (Godot, Unreal, GameMaker) que no se explica por lo anterior | Posible error del SDK | No lo parches: reporta a la persona la salida del verificador para enviarla a Boly |
 
 Corrige, vuelve a compilar y repite hasta que pase todo.

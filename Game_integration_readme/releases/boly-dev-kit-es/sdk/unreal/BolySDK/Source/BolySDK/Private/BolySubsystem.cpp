@@ -10,6 +10,13 @@
 #include "Interfaces/IHttpResponse.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "HAL/FileManager.h"
+#include "Internationalization/Regex.h"
+#include "Misc/FileHelper.h"
+#include "Misc/Guid.h"
+#include "Misc/Paths.h"
+#include "Policies/CondensedJsonPrintPolicy.h"
+#include "Serialization/JsonWriter.h"
 #include "Misc/CommandLine.h"
 #include "Misc/PackageName.h"
 #include "Serialization/JsonReader.h"
@@ -20,6 +27,8 @@ DEFINE_LOG_CATEGORY_STATIC(LogBoly, Log, All);
 namespace
 {
 	const TCHAR* HeartbeatPath = TEXT("/v1/validate/validate");
+	const TCHAR* AchievementsPath = TEXT("/v1/lumen/achievements");
+	constexpr int32 MaxBatch = 50;
 	constexpr int32 MaxConsecutiveFailures = 4;
 	// Una peticion colgada cuenta como fallo en vez de detener el heartbeat.
 	constexpr float RequestTimeoutSeconds = 15.0f;
@@ -96,6 +105,10 @@ void UBolySubsystem::ParseCommandLine()
 			ApiBase = Value;
 			ApiBase.RemoveFromEnd(TEXT("/"));
 		}
+		else if (Tokens[i].Equals(TEXT("-boly_test_achievement"), ESearchCase::IgnoreCase))
+		{
+			TestAchievement = Value;
+		}
 		else if (Tokens[i].Equals(TEXT("-heartbeat_seconds"), ESearchCase::IgnoreCase))
 		{
 			const float Seconds = FCString::Atof(*Value);
@@ -157,6 +170,11 @@ void UBolySubsystem::OnHeartbeatResponse(FHttpRequestPtr Request, FHttpResponseP
 		{
 			bFirstValidation = false;
 			BecomeReady();
+		}
+		else if (PendingOps.Num() > 0)
+		{
+			// Hay red y sesion: buen momento para reintentar lo pendiente.
+			FlushAchievements();
 		}
 		return;
 	}
@@ -227,6 +245,15 @@ void UBolySubsystem::BecomeReady()
 	bReady = true;
 	OnReady.Broadcast();
 
+	if (!bEditorSession)
+	{
+		StartAchievements();
+		if (IsTestAchievementAllowed())
+		{
+			UnlockAchievement(TestAchievement);
+		}
+	}
+
 	const FSoftObjectPath& Level = GetDefault<UBolySettings>()->LevelOnReady;
 	UWorld* World = GetGameInstance() ? GetGameInstance()->GetWorld() : nullptr;
 	if (Level.IsValid() && World)
@@ -259,4 +286,376 @@ void UBolySubsystem::EndSession(EBolyEndReason Reason)
 		// nivel) QuitGame no hace nada, asi que se pide la salida directamente.
 		FPlatformMisc::RequestExit(false);
 	}
+}
+
+// ── Logros ─────────────────────────────────────────────────────────────────
+
+void UBolySubsystem::UnlockAchievement(const FString& ApiName)
+{
+	ReportAchievement(ApiName, TEXT("unlock"), 0, false);
+}
+
+void UBolySubsystem::IncrementAchievement(const FString& ApiName, int32 Amount)
+{
+	if (Amount <= 0)
+	{
+		UE_LOG(LogBoly, Warning, TEXT("IncrementAchievement(%s) necesita un Amount mayor que 0."), *ApiName);
+		return;
+	}
+	ReportAchievement(ApiName, TEXT("increment"), Amount, true);
+}
+
+void UBolySubsystem::SetAchievementProgress(const FString& ApiName, int32 Value)
+{
+	if (Value < 0)
+	{
+		UE_LOG(LogBoly, Warning, TEXT("SetAchievementProgress(%s) necesita un Value mayor o igual a 0."), *ApiName);
+		return;
+	}
+	ReportAchievement(ApiName, TEXT("set"), Value, true);
+}
+
+bool UBolySubsystem::IsAchievementUnlocked(const FString& ApiName) const
+{
+	const FAchievementState* State = AchievementStates.Find(ApiName);
+	return State && State->bUnlocked;
+}
+
+bool UBolySubsystem::GetAchievementProgress(const FString& ApiName, int32& Current, int32& Target) const
+{
+	const FAchievementState* State = AchievementStates.Find(ApiName);
+	if (!State)
+	{
+		return false;
+	}
+	Current = State->Current;
+	Target = State->Target;
+	return true;
+}
+
+void UBolySubsystem::ReportAchievement(const FString& ApiName, const FString& Op, int32 Value, bool bHasValue)
+{
+	// Un nombre que no cumple el formato no puede existir en boly.cl: es un
+	// error de tipeo, asi que ni se envia.
+	const FRegexPattern Pattern(TEXT("^[A-Z][A-Z0-9_]{0,63}$"));
+	FRegexMatcher Matcher(Pattern, ApiName);
+	if (!Matcher.FindNext())
+	{
+		UE_LOG(LogBoly, Error, TEXT("\"%s\" no es un api_name valido (A-Z, 0-9 y _). Usa las constantes de BolyAchievements.h."), *ApiName);
+		return;
+	}
+
+	if (bEditorSession)
+	{
+		// En el editor no se envia nada; un unlock dispara el evento para probar el popup.
+		UE_LOG(LogBoly, Log, TEXT("(editor) %s %s - no se envia a Boly."), *Op, *ApiName);
+		if (Op == TEXT("unlock") && !IsAchievementUnlocked(ApiName))
+		{
+			FAchievementState State;
+			State.bUnlocked = true;
+			AchievementStates.Add(ApiName, State);
+			OnAchievementUnlocked.Broadcast(ApiName, 1, 1);
+		}
+		return;
+	}
+
+	if (Key.IsEmpty())
+	{
+		UE_LOG(LogBoly, Warning, TEXT("Sin sesion de Boly: el logro %s no se envia."), *ApiName);
+		return;
+	}
+
+	FPendingOp Pending;
+	Pending.ClientEventId = FGuid::NewGuid().ToString(EGuidFormats::DigitsWithHyphensLower);
+	Pending.ApiName = ApiName;
+	Pending.Op = Op;
+	Pending.Value = Value;
+	Pending.bHasValue = bHasValue;
+	PendingOps.Add(Pending);
+	SavePending();
+	FlushAchievements();
+}
+
+TSharedRef<IHttpRequest, ESPMode::ThreadSafe> UBolySubsystem::MakeAchievementsRequest(const FString& Verb) const
+{
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
+	Request->SetURL(ApiBase + AchievementsPath);
+	Request->SetVerb(Verb);
+	Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
+	Request->SetHeader(TEXT("X-Boly-Game-Id"), FString::FromInt(GameId));
+	Request->SetHeader(TEXT("X-Boly-Key"), Key);
+	Request->SetHeader(TEXT("X-Boly-SDK"), FString::Printf(TEXT("unreal/%s"), SdkVersion));
+	Request->SetTimeout(RequestTimeoutSeconds);
+	return Request;
+}
+
+// Con el primer heartbeat valido ya se sabe quien juega: recupera lo pendiente
+// de ese alumno, sincroniza y envia.
+void UBolySubsystem::StartAchievements()
+{
+	if (!LearnerId.IsEmpty())
+	{
+		PendingFile = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Boly"),
+			FString::Printf(TEXT("achievements-%d-%s.json"), GameId, *LearnerId));
+		LoadPending();
+		SavePending();
+	}
+	bAchievementsSession = true;
+	SyncAchievements();
+	FlushAchievements();
+}
+
+void UBolySubsystem::SyncAchievements()
+{
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = MakeAchievementsRequest(TEXT("GET"));
+	Request->OnProcessRequestComplete().BindWeakLambda(this, [this](FHttpRequestPtr, FHttpResponsePtr Response, bool bWasSuccessful)
+	{
+		if (!bWasSuccessful || !Response.IsValid() || Response->GetResponseCode() != 200)
+		{
+			return;
+		}
+		TSharedPtr<FJsonObject> Json;
+		const TArray<TSharedPtr<FJsonValue>>* List = nullptr;
+		if (!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Response->GetContentAsString()), Json)
+			|| !Json.IsValid() || !Json->TryGetArrayField(TEXT("achievements"), List))
+		{
+			return;
+		}
+		for (const TSharedPtr<FJsonValue>& Item : *List)
+		{
+			const TSharedPtr<FJsonObject>* Object = nullptr;
+			FString ApiName;
+			if (!Item->TryGetObject(Object) || !(*Object)->TryGetStringField(TEXT("api_name"), ApiName))
+			{
+				continue;
+			}
+			FAchievementState State;
+			(*Object)->TryGetNumberField(TEXT("current"), State.Current);
+			(*Object)->TryGetNumberField(TEXT("target"), State.Target);
+			(*Object)->TryGetBoolField(TEXT("unlocked"), State.bUnlocked);
+			AchievementStates.Add(ApiName, State);
+		}
+		OnAchievementsSynced.Broadcast();
+	});
+	Request->ProcessRequest();
+}
+
+void UBolySubsystem::FlushAchievements()
+{
+	if (bFlushing || !bAchievementsSession || bEnding || PendingOps.Num() == 0)
+	{
+		return;
+	}
+	bFlushing = true;
+	InFlightCount = FMath::Min(MaxBatch, PendingOps.Num());
+
+	FString Body;
+	const TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer =
+		TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Body);
+	Writer->WriteObjectStart();
+	Writer->WriteArrayStart(TEXT("updates"));
+	for (int32 i = 0; i < InFlightCount; ++i)
+	{
+		const FPendingOp& Pending = PendingOps[i];
+		Writer->WriteObjectStart();
+		Writer->WriteValue(TEXT("api_name"), Pending.ApiName);
+		Writer->WriteValue(TEXT("op"), Pending.Op);
+		Writer->WriteValue(TEXT("client_event_id"), Pending.ClientEventId);
+		if (Pending.bHasValue)
+		{
+			Writer->WriteValue(TEXT("value"), Pending.Value);
+		}
+		Writer->WriteObjectEnd();
+	}
+	Writer->WriteArrayEnd();
+	Writer->WriteObjectEnd();
+	Writer->Close();
+
+	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = MakeAchievementsRequest(TEXT("POST"));
+	Request->SetContentAsString(Body);
+	Request->OnProcessRequestComplete().BindUObject(this, &UBolySubsystem::OnFlushResponse);
+	Request->ProcessRequest();
+}
+
+void UBolySubsystem::OnFlushResponse(FHttpRequestPtr Request, FHttpResponsePtr Response, bool bWasSuccessful)
+{
+	bFlushing = false;
+	const int32 Code = (bWasSuccessful && Response.IsValid()) ? Response->GetResponseCode() : 0;
+
+	if (Code == 400)
+	{
+		// El lote completo es invalido: reintentarlo nunca funcionaria.
+		UE_LOG(LogBoly, Error, TEXT("El servidor rechazo un lote de logros (400): %s"), *Response->GetContentAsString());
+		RemoveFirstPending(InFlightCount);
+		FlushAchievements();
+		return;
+	}
+	if (Code != 200)
+	{
+		// Sin red, 5xx, 429 o sesion rechazada (403): se conserva y se reintenta
+		// con el proximo heartbeat (o en la proxima sesion de este alumno).
+		return;
+	}
+
+	TArray<TPair<FString, FAchievementState>> Unlocked;
+	TSharedPtr<FJsonObject> Json;
+	const TArray<TSharedPtr<FJsonValue>>* Results = nullptr;
+	if (FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Response->GetContentAsString()), Json)
+		&& Json.IsValid() && Json->TryGetArrayField(TEXT("results"), Results))
+	{
+		// Cada resultado corresponde, en orden, a una operacion del lote.
+		for (int32 i = 0; i < InFlightCount && i < Results->Num(); ++i)
+		{
+			const TSharedPtr<FJsonObject>* Object = nullptr;
+			if (!(*Results)[i]->TryGetObject(Object))
+			{
+				continue;
+			}
+			FString ApiName;
+			FString Status;
+			(*Object)->TryGetStringField(TEXT("api_name"), ApiName);
+			(*Object)->TryGetStringField(TEXT("status"), Status);
+			if (Status == TEXT("ok") || Status == TEXT("duplicate"))
+			{
+				FAchievementState State;
+				(*Object)->TryGetNumberField(TEXT("current"), State.Current);
+				(*Object)->TryGetNumberField(TEXT("target"), State.Target);
+				(*Object)->TryGetBoolField(TEXT("unlocked"), State.bUnlocked);
+				AchievementStates.Add(ApiName, State);
+				bool bNewlyUnlocked = false;
+				if ((*Object)->TryGetBoolField(TEXT("newly_unlocked"), bNewlyUnlocked) && bNewlyUnlocked)
+				{
+					Unlocked.Emplace(ApiName, State);
+				}
+			}
+			else if (Status == TEXT("unknown"))
+			{
+				UE_LOG(LogBoly, Error, TEXT("El logro \"%s\" no existe en este juego. Revisa el api_name en boly.cl o descarga de nuevo BolyAchievements.h."), *ApiName);
+			}
+			else if (Status == TEXT("retired"))
+			{
+				UE_LOG(LogBoly, Warning, TEXT("El logro \"%s\" fue retirado en boly.cl; se ignora."), *ApiName);
+			}
+			else
+			{
+				UE_LOG(LogBoly, Error, TEXT("Operacion de logro invalida para \"%s\" (%s)."), *ApiName, *Status);
+			}
+		}
+	}
+
+	RemoveFirstPending(InFlightCount);
+	// Despues de sacar el lote de la cola, asi GetPendingAchievementCount ya es el real.
+	for (const TPair<FString, FAchievementState>& Entry : Unlocked)
+	{
+		OnAchievementUnlocked.Broadcast(Entry.Key, Entry.Value.Current, Entry.Value.Target);
+	}
+	FlushAchievements();
+}
+
+void UBolySubsystem::RemoveFirstPending(int32 Count)
+{
+	PendingOps.RemoveAt(0, FMath::Min(Count, PendingOps.Num()));
+	InFlightCount = 0;
+	SavePending();
+}
+
+void UBolySubsystem::LoadPending()
+{
+	FString Text;
+	if (!FFileHelper::LoadFileToString(Text, *PendingFile))
+	{
+		return;
+	}
+	TArray<TSharedPtr<FJsonValue>> Saved;
+	if (!FJsonSerializer::Deserialize(TJsonReaderFactory<>::Create(Text), Saved))
+	{
+		return;
+	}
+
+	// Lo pendiente de sesiones anteriores va primero, en su orden original.
+	TSet<FString> Current;
+	for (const FPendingOp& Pending : PendingOps)
+	{
+		Current.Add(Pending.ClientEventId);
+	}
+	TArray<FPendingOp> Older;
+	for (const TSharedPtr<FJsonValue>& Item : Saved)
+	{
+		const TSharedPtr<FJsonObject>* Object = nullptr;
+		FPendingOp Pending;
+		if (!Item->TryGetObject(Object)
+			|| !(*Object)->TryGetStringField(TEXT("client_event_id"), Pending.ClientEventId)
+			|| !(*Object)->TryGetStringField(TEXT("api_name"), Pending.ApiName)
+			|| !(*Object)->TryGetStringField(TEXT("op"), Pending.Op)
+			|| Current.Contains(Pending.ClientEventId))
+		{
+			continue;
+		}
+		Pending.bHasValue = (*Object)->TryGetNumberField(TEXT("value"), Pending.Value);
+		Older.Add(Pending);
+	}
+	PendingOps.Insert(Older, 0);
+}
+
+void UBolySubsystem::SavePending() const
+{
+	if (PendingFile.IsEmpty())
+	{
+		return;
+	}
+	if (PendingOps.Num() == 0)
+	{
+		IFileManager::Get().Delete(*PendingFile, false, false, true);
+		return;
+	}
+
+	FString Text;
+	const TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer =
+		TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Text);
+	Writer->WriteArrayStart();
+	for (const FPendingOp& Pending : PendingOps)
+	{
+		Writer->WriteObjectStart();
+		Writer->WriteValue(TEXT("client_event_id"), Pending.ClientEventId);
+		Writer->WriteValue(TEXT("api_name"), Pending.ApiName);
+		Writer->WriteValue(TEXT("op"), Pending.Op);
+		if (Pending.bHasValue)
+		{
+			Writer->WriteValue(TEXT("value"), Pending.Value);
+		}
+		Writer->WriteObjectEnd();
+	}
+	Writer->WriteArrayEnd();
+	Writer->Close();
+
+	IFileManager::Get().MakeDirectory(*FPaths::GetPath(PendingFile), true);
+	if (!FFileHelper::SaveStringToFile(Text, *PendingFile))
+	{
+		UE_LOG(LogBoly, Warning, TEXT("No se pudo guardar la cola de logros."));
+	}
+}
+
+// true solo si el API es un servidor local (el mock del verifier).
+bool UBolySubsystem::IsTestAchievementAllowed() const
+{
+	if (TestAchievement.IsEmpty())
+	{
+		return false;
+	}
+	FString Host;
+	if (!ApiBase.Split(TEXT("://"), nullptr, &Host))
+	{
+		return false;
+	}
+	Host.Split(TEXT("/"), &Host, nullptr);
+	if (Host.StartsWith(TEXT("[")))
+	{
+		Host.Split(TEXT("]"), &Host, nullptr);
+		Host.RemoveFromStart(TEXT("["));
+	}
+	else
+	{
+		Host.Split(TEXT(":"), &Host, nullptr);
+	}
+	return Host == TEXT("localhost") || Host == TEXT("::1") || Host.StartsWith(TEXT("127."));
 }

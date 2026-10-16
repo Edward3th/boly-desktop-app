@@ -39,6 +39,47 @@ boly_on_session_ended(function(_razon) { guardar_partida(); });
 | `boly_game_id()`, `boly_session_id()`, `boly_learner_id()`, `boly_has_subscription_access()`, `boly_is_editor()` | Datos de la sesión. |
 | `boly_server_now()` | Hora del servidor en segundos Unix (UTC). |
 
+## Logros (SDK 0.2+)
+
+1. Define los logros en **boly.cl ▸ Panel de desarrollador ▸ tu juego ▸
+   Gestionar logros**: nombre, cómo se consigue, meta (1 = de una vez) y la
+   clave `api_name`.
+2. En esa misma página, **Descargar constantes ▸ GameMaker** y agrega
+   `boly_achievements.gml` a tu proyecto, en un Script con ese nombre.
+3. Reporta el progreso desde tu código:
+
+```gml
+boly_achievement_unlock(BOLY_ACH_NIVEL_5_COMPLETO);
+boly_achievement_increment(BOLY_ACH_RESPONDER_100);       // +1
+boly_achievement_set(BOLY_ACH_ESTRELLAS, 12);             // nunca baja
+
+boly_on_achievement_unlocked(function(_id, _actual, _meta) { mostrar_popup(_id); });
+```
+
+| Función | Descripción |
+|---|---|
+| `boly_achievement_unlock(id)` / `boly_achievement_increment(id, n = 1)` / `boly_achievement_set(id, v)` | Reportan progreso. No bloquean ni fallan: se encolan. |
+| `boly_on_achievement_unlocked(cb)` | `cb(api_name, current, target)` cuando el servidor confirma un desbloqueo nuevo. |
+| `boly_on_achievements_synced(cb)` | Llegó el estado de los logros al iniciar la sesión. |
+| `boly_achievement_is_unlocked(id)`, `boly_achievement_get(id)` | Estado conocido (`{ current, target, unlocked }`). |
+| `boly_achievement_pending()` | Operaciones que el servidor aún no confirma. |
+
+Cómo se envían:
+- Cada operación se guarda en una cola en disco (un archivo `boly_achievements_<juego>_<alumno>.json` en el área de guardado del juego), **separada por
+  alumno**: en un PC compartido, lo pendiente de un alumno solo se envía cuando
+  ese mismo alumno vuelve a jugar.
+- Sin conexión se reintenta en cada heartbeat; si el juego se cierra, se envía
+  en la próxima sesión. Los reintentos nunca cuentan dos veces.
+- Un `api_name` mal escrito aparece como error en el log (`[Boly] El logro
+  "..." no existe en este juego`).
+- **Desde el IDE** no se envía nada: un unlock dispara el aviso de desbloqueo
+  localmente para que puedas probar tu popup.
+- Para volver a probar un desbloqueo con tu cuenta, usa **Borrar mi progreso
+  de prueba** en la página de logros de boly.cl.
+
+> **Estado:** escrito siguiendo el SDK de Unity (que sí está verificado), pero
+> aún sin probar en GameMaker. Pásalo por el verifier (escenario 6) antes de publicarlo.
+
 ## Notas
 
 - "Modo editor" = correr desde el IDE (`GM_build_type == "run"`) sin `-key`.
