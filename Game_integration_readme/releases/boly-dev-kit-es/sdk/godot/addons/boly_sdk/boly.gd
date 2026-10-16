@@ -185,6 +185,7 @@ func _report_achievement(api_name: String, op: String, value: int, has_value: bo
 	if is_editor:
 		# En el editor no se envia nada; un unlock emite la senal para probar el popup.
 		print("[Boly] (editor) %s %s — no se envia a Boly." % [op, api_name])
+		_warn_if_undeclared(api_name)
 		if op == "unlock" and not is_achievement_unlocked(api_name):
 			_achievement_states[api_name] = {"current": 1, "target": 1, "unlocked": true}
 			achievement_unlocked.emit(api_name, 1, 1)
@@ -200,6 +201,35 @@ func _report_achievement(api_name: String, op: String, value: int, has_value: bo
 	_pending.append(entry)
 	_save_pending()
 	_schedule_flush()
+
+
+# Si el proyecto declara sus logros en res://boly/achievements.json, un
+# api_name que no esta ahi seria ignorado por Boly: se avisa ya en el editor.
+var _declared_names = null  # null = sin manifiesto (logros gestionados en boly.cl)
+var _declared_loaded := false
+
+
+func _warn_if_undeclared(api_name: String) -> void:
+	if not _declared_loaded:
+		_declared_loaded = true
+		_declared_names = _load_declared_names()
+	if _declared_names != null and not _declared_names.has(api_name):
+		push_warning("[Boly] (editor) \"%s\" no esta en boly/achievements.json: Boly lo ignorara. Agregalo al archivo o revisa el nombre." % api_name)
+
+
+func _load_declared_names():
+	var path := "res://boly/achievements.json"
+	if not FileAccess.file_exists(path):
+		return null
+	var manifest = JSON.parse_string(FileAccess.get_file_as_string(path))
+	if typeof(manifest) != TYPE_DICTIONARY or typeof(manifest.get("achievements")) != TYPE_ARRAY:
+		push_warning("[Boly] (editor) boly/achievements.json no es un manifiesto valido.")
+		return null
+	var names := {}
+	for entry in manifest["achievements"]:
+		if typeof(entry) == TYPE_DICTIONARY and typeof(entry.get("api_name")) == TYPE_STRING:
+			names[entry["api_name"]] = true
+	return names
 
 
 # Con el primer heartbeat valido ya se sabe quien juega: recupera lo pendiente

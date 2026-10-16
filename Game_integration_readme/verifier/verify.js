@@ -9,12 +9,16 @@
 // quit-on-403, transient tolerance). Run BEFORE uploading a build to Boly.
 //
 //   node verify.js --game <path-to-exe> --game-id <int>
+//   node verify.js manifest <build folder or .zip> [--constants <engine>]
 //
 // Zero dependencies. See README.md for full usage.
 
 const fs = require('fs')
+const path = require('path')
 const { SCENARIOS } = require('./scenarios')
 const report = require('./report')
+const { checkBuildAchievements } = require('./manifest')
+const { ENGINES, achievementConstantsFile } = require('./constants')
 
 function parseArgs(argv) {
   const opts = {
@@ -100,12 +104,94 @@ Scenarios:
   3  Transient failure tolerated (one 5xx, recovers)
   4  Repeated failures → quit
   5  Missing -key → quit immediately, no heartbeat
+  6  Achievements — reported, retried, never counted twice
+  7  boly/achievements.json next to the executable (if the build declares achievements)
 
 Exit code is 0 only if every selected scenario passes.
+
+Achievement manifest only (no game launch):
+  node verify.js manifest <build folder or .zip> [--constants <engine>] [--out <path>] [--json]
+
+  Checks boly/achievements.json and its icons exactly as Boly will when the
+  build is uploaded. --constants unity|godot|unreal|gamemaker also writes the
+  constants file for that engine (to --out, a folder or file; default: here).
 `)
 }
 
+// verify.js manifest <path> — validate boly/achievements.json without
+// launching the game, and optionally write the engine's constants file.
+async function manifestCommand(argv) {
+  const opts = { target: null, constants: null, out: null, json: false }
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i]
+    if (a === '--constants') opts.constants = argv[++i]
+    else if (a === '--out') opts.out = argv[++i]
+    else if (a === '--json') opts.json = true
+    else if (!opts.target && !a.startsWith('--')) opts.target = a
+    else {
+      console.error(`Unknown argument: ${a}`)
+      process.exit(2)
+    }
+  }
+  if (!opts.target || !fs.existsSync(opts.target)) {
+    console.error('Error: pass the build folder (where the executable is) or the build .zip.')
+    process.exit(2)
+  }
+  if (opts.constants && !ENGINES.includes(opts.constants)) {
+    console.error(`Error: --constants must be one of ${ENGINES.join(', ')}`)
+    process.exit(2)
+  }
+
+  const result = await checkBuildAchievements(opts.target)
+  let written = null
+  if (opts.constants && result.status === 'ok') {
+    const file = achievementConstantsFile(opts.constants, result.achievements)
+    const out = opts.out || '.'
+    const dest = fs.existsSync(out) && fs.statSync(out).isDirectory() ? path.join(out, file.fileName) : out
+    fs.writeFileSync(dest, file.content)
+    written = dest
+  }
+
+  if (opts.json) {
+    const { icons, ...rest } = result
+    console.log(JSON.stringify({ ...rest, icons: icons ? Object.keys(icons) : undefined, constants: written }, null, 2))
+  } else {
+    printManifestResult(result, opts.target)
+    if (written) console.log(report.green(`Constants written to ${written}`))
+    if (opts.constants && !written) console.log(report.yellow('Constants not written: fix the manifest first.'))
+  }
+  process.exit(result.status === 'ok' ? 0 : 1)
+}
+
+function printManifestResult(result, target) {
+  console.log(report.bold('\nBoly achievement manifest check'))
+  console.log(report.dim(`build: ${target}`))
+  if (result.status === 'absent') {
+    console.log(report.yellow('\nNo boly/achievements.json found (looked at the root and one folder down).'))
+    return
+  }
+  if (result.manifestPath) console.log(report.dim(`file:  ${result.manifestPath}`))
+  for (const issue of result.issues) {
+    const mark = issue.level === 'error' ? report.red('  ERROR') : report.yellow('  WARN ')
+    console.log(`${mark}  ${issue.code}${issue.path ? `  ${issue.path}` : ''}`)
+    console.log(`         ${report.dim(issue.message)}`)
+  }
+  if (result.status === 'ok') {
+    console.log('')
+    for (const a of result.achievements) {
+      const extra = [a.target > 1 ? `meta ${a.target}` : null, a.hidden ? 'oculto' : null, a.icon ? a.icon : 'sin ícono']
+        .filter(Boolean)
+        .join(' · ')
+      console.log(`  ${a.api_name}  ${report.dim(`${a.name.es} — ${extra}`)}`)
+    }
+    console.log(report.green(report.bold(`\n✓ ${result.achievements.length} achievements ready for Boly.`)))
+  } else {
+    console.log(report.red(report.bold('\n✗ Boly will not apply these achievements until the errors are fixed.')))
+  }
+}
+
 async function main() {
+  if (process.argv[2] === 'manifest') return manifestCommand(process.argv.slice(3))
   const opts = parseArgs(process.argv.slice(2))
 
   if (opts.help) {
@@ -131,6 +217,8 @@ async function main() {
     heartbeat,
     intervalSec,
     launcher: opts.launcher,
+    // boly/achievements.json next to the executable, if the build has one
+    manifest: await checkBuildAchievements(path.dirname(path.resolve(opts.game))),
   }
 
   const selected = opts.only

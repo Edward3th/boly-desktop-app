@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text.RegularExpressions;
 using UnityEngine;
 
@@ -112,10 +113,54 @@ namespace Boly
             static void SimulateInEditor(string apiName, string op)
             {
                 Debug.Log("[Boly] (editor) " + op + " " + apiName + " — no se envia a Boly.");
+                WarnIfUndeclared(apiName);
                 if (op != "unlock" || IsUnlocked(apiName)) return;
                 var state = new BolyAchievementState { ApiName = apiName, Current = 1, Target = 1, Unlocked = true };
                 states[apiName] = state;
                 RaiseUnlocked(state);
+            }
+
+            // Si el proyecto declara sus logros en boly/achievements.json (raiz del
+            // proyecto), un api_name que no esta ahi seria ignorado por Boly: se
+            // avisa ya en el editor. Se relee en cada Play.
+            static HashSet<string> declaredNames;
+            static bool declaredLoaded;
+
+            [Serializable] class ManifestNames { public ManifestEntry[] achievements; }
+            [Serializable] class ManifestEntry { public string api_name; }
+
+            static void WarnIfUndeclared(string apiName)
+            {
+                if (!declaredLoaded)
+                {
+                    declaredLoaded = true;
+                    declaredNames = LoadDeclaredNames();
+                }
+                if (declaredNames != null && !declaredNames.Contains(apiName))
+                {
+                    Debug.LogWarning("[Boly] (editor) \"" + apiName + "\" no esta en boly/achievements.json: Boly lo ignorara. Agregalo al archivo o revisa el nombre.");
+                }
+            }
+
+            static HashSet<string> LoadDeclaredNames()
+            {
+                var path = Path.Combine(Directory.GetParent(Application.dataPath).FullName, "boly", "achievements.json");
+                if (!File.Exists(path)) return null;
+                try
+                {
+                    var manifest = JsonUtility.FromJson<ManifestNames>(File.ReadAllText(path));
+                    var names = new HashSet<string>();
+                    foreach (var entry in manifest?.achievements ?? new ManifestEntry[0])
+                    {
+                        if (!string.IsNullOrEmpty(entry?.api_name)) names.Add(entry.api_name);
+                    }
+                    return names;
+                }
+                catch (Exception e)
+                {
+                    Debug.LogWarning("[Boly] (editor) boly/achievements.json no es un JSON valido: " + e.Message);
+                    return null;
+                }
             }
 
             internal static void ApplyServerState(string apiName, int current, int target, bool unlocked)
@@ -153,6 +198,8 @@ namespace Boly
                 OnUnlocked = null;
                 OnSynced = null;
                 IsSynced = false;
+                declaredLoaded = false;
+                declaredNames = null;
             }
         }
     }

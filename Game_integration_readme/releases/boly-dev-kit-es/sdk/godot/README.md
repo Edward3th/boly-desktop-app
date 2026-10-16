@@ -80,6 +80,23 @@ Cómo se envían:
 > **Estado:** escrito siguiendo el SDK de Unity (que sí está verificado), pero
 > aún sin probar en Godot. Pásalo por el verifier (escenario 6) antes de publicarlo.
 
+## Logros declarados en la build
+
+En vez de crearlos en boly.cl, el juego puede traer sus logros en
+`res://boly/achievements.json` (con los íconos en `res://boly/icons/`). Crea
+también un archivo vacío `res://boly/.gdignore`, para que Godot no importe los
+íconos ni los meta en el `.pck`. Al exportar, el SDK copia la carpeta junto al
+ejecutable (`EditorExportPlugin`), así el zip que subes ya la lleva. Al subir la
+build, Boly crea los logros nuevos como borradores y los activa cuando la
+build se aprueba.
+
+En el editor, reportar un `api_name` que no está en el archivo muestra un
+aviso en el log.
+
+Valida el archivo y genera las constantes con el verificador del kit:
+`boly-verify-win.exe manifest <carpeta del build> --constants godot`.
+Formato completo: [`spec/ACHIEVEMENTS_MANIFEST.md`](../spec/ACHIEVEMENTS_MANIFEST.md).
+
 ## Notas
 
 - Corre con `PROCESS_MODE_ALWAYS`: el heartbeat sigue con el árbol en pausa.

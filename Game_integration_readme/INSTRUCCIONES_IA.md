@@ -140,12 +140,23 @@ en consola; Unreal: compila el módulo) antes de seguir.
 
 Solo si la persona quiere logros.
 
-- Los logros **no se crean desde el código**: la persona los define en
-  **boly.cl ▸ Panel de Desarrollador ▸ su juego ▸ Gestionar logros** y descarga
-  ahí el archivo de constantes de su motor. Pídele ese archivo; no inventes
-  `api_name`.
-- Agrega el archivo al proyecto y llama al SDK donde ocurre cada logro (ej. al
-  terminar el nivel 5):
+- Los logros los define la persona, de una de dos formas. Pregúntale cuál
+  usa; no inventes logros ni `api_name`.
+  - **En boly.cl** (Panel de Desarrollador ▸ su juego ▸ Gestionar logros): ahí
+    descarga el archivo de constantes de su motor. Pídele ese archivo.
+  - **En la build** (recomendado para juegos nuevos): un archivo
+    `boly/achievements.json` con sus íconos en `boly/icons/`. Si la persona te
+    describe los logros, escribe tú el archivo según `sdk/BOLY_SDK.md` §4
+    ("Dónde nacen"): ahí está el formato y dónde va la carpeta en cada motor
+    (Unity: raíz del proyecto; Godot: `res://boly/` con un `.gdignore` vacío;
+    Unreal y GameMaker: se copia a mano junto al `.exe`). Valídalo y genera las
+    constantes con:
+    ```powershell
+    & "<KIT>\boly-verify-win.exe" manifest "<carpeta con boly/>" --constants <unity|godot|unreal|gamemaker> --out "<carpeta de scripts>"
+    ```
+    Si un ícono que la persona nombró no existe, déjalo sin ícono y avísale.
+- Agrega el archivo de constantes al proyecto y llama al SDK donde ocurre cada
+  logro (ej. al terminar el nivel 5):
 
 | Motor | Archivo de constantes | Desbloquear | Sumar | Fijar progreso | Aviso de desbloqueo |
 |---|---|---|---|---|---|
@@ -196,11 +207,13 @@ Desde la carpeta del kit (PowerShell):
 - Tarda ~1-2 minutos. El juego se abre y se cierra varias veces: es normal.
 - El código de salida es `0` solo si todo pasa. Con `--json`, revisa `passed` y
   cada `checks[].status` (`pass`, `fail`, `warn`).
-- Los 6 escenarios: sesión válida, 403 → cerrar, un fallo de red tolerado, fallos
-  repetidos → cerrar, sin `-key` → cerrar sin enviar nada, y logros (el
+- Los 7 escenarios: sesión válida, 403 → cerrar, un fallo de red tolerado, fallos
+  repetidos → cerrar, sin `-key` → cerrar sin enviar nada, logros (el
   verificador desbloquea un logro de prueba y comprueba el reintento; no hay que
-  programar nada para eso). Un `WARN` en el escenario 6 indica un SDK anterior
-  sin logros: vuelve a copiar el SDK del kit.
+  programar nada para eso) y el manifiesto `boly/achievements.json` junto al
+  `.exe` (se marca SKIP si el juego no declara sus logros en la build). Un
+  `WARN` en el escenario 6 indica un SDK anterior sin logros: vuelve a copiar
+  el SDK del kit.
 
 | Resultado | Causa probable | Qué hacer |
 |---|---|---|
@@ -210,6 +223,8 @@ Desde la carpeta del kit (PowerShell):
 | FAIL "Cadence is steady" | El heartbeat se detuvo | Cargas bloqueantes; usa carga asíncrona |
 | WARN "Identifies the SDK" | El build todavía usa ParamsCatcher | Termina el Paso 1 |
 | FAIL en "Achievements" | SDK modificado o incompleto | Vuelve a copiar el SDK del kit sin cambios; no envíes logros con tu propio código de red. En Godot, Unreal o GameMaker, si sigue fallando con el SDK del kit, repórtalo a la persona (posible error del SDK) |
+| FAIL en "Achievement manifest" | `boly/achievements.json` con errores | Corrige cada error en el campo que indica (`achievements[2].target`, etc.) |
+| WARN `icon_missing` | Ruta o mayúsculas distintas | Usa el nombre exacto del archivo; el mensaje sugiere el correcto |
 | FAIL en un motor nuevo (Godot, Unreal, GameMaker) que no se explica por lo anterior | Posible error del SDK | No lo parches: reporta a la persona la salida del verificador para enviarla a Boly |
 
 Corrige, vuelve a compilar y repite hasta que pase todo.
@@ -223,7 +238,13 @@ build**, con el `tar` de Windows (no uses `Compress-Archive` de PowerShell):
 cd "<carpeta del build>"; & "$env:SystemRoot\System32\tar.exe" -a -c -f ..\build.zip *
 ```
 
-Ojo: `*` al final, **no un punto**. El zip debe contener el `.exe` del juego.
+Ojo: `*` al final, **no un punto**. El zip debe contener el `.exe` del juego
+y, si el juego declara sus logros, la carpeta `boly/` junto a él. Revisa el zip
+final con:
+
+```powershell
+& "<KIT>\boly-verify-win.exe" manifest "<ruta al build.zip>"
+```
 
 ## Informe final
 
@@ -231,6 +252,7 @@ Termina con un resumen para la persona:
 - motor y versión, y qué integración antigua quitaste (si había),
 - archivos que agregaste o cambiaste,
 - dónde quedó el `.exe` (y el zip, si lo creaste),
-- el resultado del verificador (los 6 escenarios),
-- los logros que conectaste (si hubo), con el `api_name` de cada uno,
+- el resultado del verificador (los 7 escenarios),
+- los logros que conectaste (si hubo), con el `api_name` de cada uno, y si van
+  en `boly/achievements.json` o se crean en boly.cl,
 - lo que falta: subir el build en **boly.cl ▸ Panel de Desarrollador** (lo hace la persona).

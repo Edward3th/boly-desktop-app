@@ -89,6 +89,18 @@ Cómo se envían:
 > **Estado:** escrito siguiendo el SDK de Unity (que sí está verificado), pero
 > aún sin compilar. Pásalo por el verifier (escenario 6) antes de publicarlo.
 
+## Logros declarados en la build
+
+En vez de crearlos en boly.cl, el juego puede traer sus logros en una carpeta
+`boly/` (`achievements.json` + `icons/`). Guárdala en la raíz del proyecto y
+**cópiala a mano junto al `.exe`** del build empaquetado antes de comprimirlo.
+Al subir la build, Boly crea los logros nuevos como borradores y los activa
+cuando la build se aprueba.
+
+Valida el archivo y genera las constantes con el verificador del kit:
+`boly-verify-win.exe manifest <carpeta del build> --constants unreal`.
+Formato completo: [`spec/ACHIEVEMENTS_MANIFEST.md`](../spec/ACHIEVEMENTS_MANIFEST.md).
+
 ## Notas
 
 - En PIE sin `-key` no hace peticiones. Ojo: *Standalone Game* lanzado desde el

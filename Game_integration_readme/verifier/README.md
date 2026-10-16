@@ -20,6 +20,7 @@ header, not quitting on `403`, or quitting on the first network hiccup.
 | 4 | Repeated failures → quit | The game exits after ~2 consecutive failures |
 | 5 | Missing `-key` | The game refuses to start and sends no heartbeat |
 | 6 | Achievements (Boly SDK 0.2+) | Launched with the test-only `-boly_test_achievement BOLY_VERIFIER_TEST`, the game syncs (`GET /v1/lumen/achievements`), reports the unlock with `X-Boly-Game-Id`/`X-Boly-Key` and a `client_event_id`, retries it with the **same** id after a `500`, and keeps playing. `SKIP` for ParamsCatcher scripts; `WARN` for SDK versions without achievements |
+| 7 | Achievement manifest | If `boly/achievements.json` sits next to the executable, checks it and its icons with the same rules and issue codes as the Boly API on upload (`SKIP` when there is none). Scenario 6 also warns when the game reports an `api_name` the manifest doesn't declare |
 
 ## Requirements on the build
 
@@ -47,6 +48,19 @@ times as you like; nothing is uploaded and no account is needed.
 
 > Windows SmartScreen may warn about an unrecognized app (the exe isn't
 > code-signed). Click **More info → Run anyway**.
+
+## Checking only the achievement manifest
+
+```
+boly-verify-win.exe manifest <build folder or .zip> [--constants unity|godot|unreal|gamemaker] [--out <folder or file>] [--json]
+```
+
+Validates `boly/achievements.json` (at the root or one folder down) and its
+icons without launching the game, exactly as Boly will when the build is
+uploaded — including exact-case icon paths, which Windows itself ignores.
+`--constants` also writes the engine's constants file (`BolyAchievements.cs`,
+…). Exit code `0` when the manifest is valid. Format:
+boly-sdk `spec/ACHIEVEMENTS_MANIFEST.md`.
 
 ## Usage (full reference)
 

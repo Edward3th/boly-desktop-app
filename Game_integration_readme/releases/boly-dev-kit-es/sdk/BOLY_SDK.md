@@ -78,7 +78,9 @@ con `MissingKey`: es lo esperado.
    Boly. La única credencial es `-key` y la maneja el SDK.
 3. No escribas el id del juego en el código: llega en `-game_id`.
 4. No hagas peticiones HTTP propias a Boly (heartbeat, logros, nada).
-5. No inventes `api_name` de logros: los define la persona en boly.cl.
+5. No inventes logros: los define la persona, en boly.cl o en
+   `boly/achievements.json`. Si te pide escribir ese archivo, usa los logros
+   que ella describa, y no cambies un `api_name` que ya existe.
 6. No agregues reintentos, colas ni guardado propio para los logros.
 7. No bloquees el cierre: en Unity no devuelvas `false` en
    `Application.wantsToQuit`; en ningún motor hagas esperas largas dentro del
@@ -115,8 +117,7 @@ Cómo reconocer el motor: Unity → `ProjectSettings/ProjectVersion.txt`; Godot 
 
 ### Dónde nacen
 
-La persona define cada logro en **boly.cl ▸ Panel de desarrollador ▸ su juego
-▸ Gestionar logros**:
+Cada logro tiene:
 
 - **Nombre** y **descripción** (lo que ven los jugadores; en español e inglés).
 - **`api_name`**: la clave que usa el código. Formato `^[A-Z][A-Z0-9_]{0,63}$`,
@@ -124,11 +125,74 @@ La persona define cada logro en **boly.cl ▸ Panel de desarrollador ▸ su jueg
 - **Meta** (`target`): `1` = se consigue de una vez; `N > 1` = tiene progreso
   (ej. "Responde 100 preguntas" → meta 100).
 - **Oculto**: no muestra nombre ni descripción hasta desbloquearse.
+- **Ícono** (opcional).
 
-En la misma página, **Descargar constantes** genera el archivo del motor
-(`BolyAchievements.cs`, `boly_achievements.gd`, `BolyAchievements.h` o
-`boly_achievements.gml`). Agrégalo al proyecto y úsalo en vez de escribir
-strings. No lo edites a mano: si cambian los logros, se vuelve a descargar.
+Hay dos formas de definirlos. Para juegos nuevos se recomienda la B.
+
+**A. En boly.cl.** La persona los crea en **Panel de desarrollador ▸ su juego
+▸ Gestionar logros** y descarga ahí el archivo de constantes del motor.
+
+**B. En la build: `boly/achievements.json`.** El juego trae sus logros:
+
+```
+<proyecto>/boly/achievements.json
+<proyecto>/boly/icons/nivel_5.png
+```
+
+```json
+{
+  "$schema": "https://boly.cl/schemas/achievements-1.json",
+  "version": 1,
+  "achievements": [
+    {
+      "api_name": "NIVEL_5_COMPLETO",
+      "name": { "es": "Nivel 5 completo", "en": "Level 5 complete" },
+      "description": { "es": "Termina el nivel 5" },
+      "target": 1,
+      "hidden": false,
+      "icon": "icons/nivel_5.png"
+    }
+  ]
+}
+```
+
+- Orden del arreglo = orden en que se muestran. `target` (default 1),
+  `hidden` (default `false`), `description` e `icon` son opcionales. No se
+  aceptan otros campos: uno mal escrito (`"hiden"`) es un error.
+- Íconos: PNG o JPEG cuadrados, de 64 a 512 px, hasta 256 KB. La ruta es
+  relativa a `boly/` y distingue mayúsculas.
+- La carpeta `boly/` tiene que quedar **junto al ejecutable** dentro del zip
+  que se sube:
+
+  | Motor | Dónde va en el proyecto | Cómo llega a la build |
+  |---|---|---|
+  | Unity | `<proyecto>/boly/` (junto a `Assets/`, no dentro) | El SDK la copia junto al `.exe` al compilar |
+  | Godot | `res://boly/` con un archivo vacío `boly/.gdignore` | El SDK la copia junto al ejecutable al exportar |
+  | Unreal | `<proyecto>/boly/` | Copiarla a mano junto al `.exe` antes de comprimir |
+  | GameMaker | Una carpeta `boly/` fuera del proyecto | Copiarla a mano junto al `.exe` antes de comprimir |
+
+- Al subir la build, Boly crea los logros nuevos como **borradores**: solo
+  el desarrollador del juego y los admins los ven y pueden probarlos con la
+  build instalada desde la app. Al **aprobar** la build se activan; los que
+  ya no aparecen se retiran (los jugadores conservan su progreso). Desde ahí
+  el archivo manda y el editor de boly.cl queda en solo lectura.
+- Valida el archivo y genera las constantes con el verificador del kit, sin
+  subir nada (ver §7):
+
+  ```powershell
+  & "<KIT>\boly-verify-win.exe" manifest "<carpeta del build o .zip>" --constants unity --out "<carpeta de scripts>"
+  ```
+
+- En el editor (Unity y Godot), reportar un `api_name` que no está en el
+  manifiesto muestra un aviso: Boly lo ignoraría.
+- Un juego que ya tiene logros en boly.cl puede pasarse a B con **Descargar
+  carpeta boly/** en la página de logros.
+- Especificación completa: `spec/ACHIEVEMENTS_MANIFEST.md` del repo del SDK.
+
+En ambos casos el **archivo de constantes** (`BolyAchievements.cs`,
+`boly_achievements.gd`, `BolyAchievements.h` o `boly_achievements.gml`) se
+agrega al proyecto y se usa en vez de escribir strings. No se edita a mano:
+si cambian los logros, se vuelve a generar.
 
 ### Tres operaciones
 
@@ -577,6 +641,15 @@ solo si todo pasa. Escenarios:
 6. Logros: el verificador desbloquea uno de prueba, corta la red una vez y
    comprueba que se reenvía con el mismo id y que el juego sigue. No hay que
    programar nada para este escenario.
+7. Manifiesto: si hay un `boly/achievements.json` junto al `.exe`, lo valida
+   (y sus íconos) igual que Boly al subir la build.
+
+Para revisar solo el manifiesto (sin abrir el juego), en la carpeta o en el
+zip que se va a subir:
+
+```powershell
+& "<KIT>\boly-verify-win.exe" manifest "<carpeta del build o .zip>"
+```
 
 | Falla | Causa probable | Arreglo |
 |---|---|---|
@@ -587,6 +660,8 @@ solo si todo pasa. Escenarios:
 | WARN "Identifies the SDK" | Sigue el ParamsCatcher | Termina la migración (§6) |
 | Escenario 6 en WARN | SDK anterior a 0.2.0 | Copia el SDK actual del kit |
 | Escenario 6 en FAIL | SDK modificado o error del SDK | Copia el SDK sin cambios; si sigue fallando en Godot/Unreal/GameMaker, repórtalo |
+| Escenario 7 en FAIL | `boly/achievements.json` con errores | Corrige lo que indica cada línea (campo y ubicación) |
+| Escenario 7 en WARN `icon_missing` | Ruta o mayúsculas distintas | Usa el nombre exacto del archivo; el mensaje sugiere el correcto |
 
 Los argumentos `-api_base`, `-heartbeat_seconds` y `-boly_test_achievement`
 existen solo para el verificador (este último solo funciona contra un
@@ -602,8 +677,10 @@ servidor local). No los uses en el juego.
 - [ ] El gameplay empieza con `IsReady` / `OnReady`.
 - [ ] El progreso se guarda en `OnSessionEnded` (si el juego guarda algo).
 - [ ] Sin `-token`, sin `Authorization`, sin id de juego fijo, sin HTTP propio a Boly.
-- [ ] Logros: constantes descargadas de boly.cl, llamadas en los eventos
-      correctos, popup en `OnUnlocked` (opcional).
-- [ ] Build de Windows compilado y verificador con los 6 escenarios en PASS.
+- [ ] Logros: constantes del motor (de boly.cl o generadas desde
+      `boly/achievements.json`), llamadas en los eventos correctos, popup en
+      `OnUnlocked` (opcional).
+- [ ] Si el juego declara sus logros: `boly/` junto al `.exe` en la build.
+- [ ] Build de Windows compilado y verificador con todos los escenarios en PASS.
 - [ ] Informe a la persona: archivos cambiados, ruta del `.exe`, resultado del
       verificador y los `api_name` conectados. La subida a boly.cl la hace ella.

@@ -69,6 +69,11 @@ for (const engine of ENGINES) {
   fs.cpSync(path.join(sdkRoot, engine), path.join(out, 'sdk', engine), { recursive: true })
 }
 fs.copyFileSync(path.join(sdkRoot, 'BOLY_SDK.md'), path.join(out, 'sdk', 'BOLY_SDK.md'))
+// The engine READMEs link ../spec/ for the boly/achievements.json format
+fs.mkdirSync(path.join(out, 'sdk', 'spec'), { recursive: true })
+for (const file of ['ACHIEVEMENTS_MANIFEST.md', 'achievements-1.schema.json']) {
+  fs.copyFileSync(path.join(sdkRoot, 'spec', file), path.join(out, 'sdk', 'spec', file))
+}
 fs.writeFileSync(path.join(out, 'sdk', 'VERSION.txt'), `boly-sdk ${sdkCommit}\r\n`)
 
 // Windows' bundled tar (bsdtar) writes a proper zip (forward-slash paths,

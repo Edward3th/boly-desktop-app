@@ -483,6 +483,46 @@ async function scenarioAchievements(ctx) {
       : check('Kept playing when an achievement report failed', 'pass'),
   )
 
+  // Names the game reported on its own that its manifest doesn't declare
+  if (ctx.manifest?.status === 'ok') {
+    const declared = new Set(ctx.manifest.achievements.map((a) => a.api_name))
+    const unknown = [
+      ...new Set(
+        postCalls.flatMap((c) => (c.parsed?.updates ?? []).map((u) => u.api_name)).filter((n) => n !== TEST_ACHIEVEMENT && !declared.has(n)),
+      ),
+    ]
+    if (unknown.length) {
+      checks.push(
+        check('Reports only achievements declared in boly/achievements.json', 'warn', `not declared: ${unknown.join(', ')} — Boly will ignore them`),
+      )
+    }
+  }
+
+  return result(title, checks, null)
+}
+
+// boly/achievements.json (+ icons) next to the executable, checked the way
+// Boly checks it when the build is uploaded. No game launch.
+async function scenarioManifest(ctx) {
+  const title = 'Achievement manifest — boly/achievements.json'
+  const m = ctx.manifest
+  if (!m || m.status === 'absent') {
+    const r = result(title, [
+      check('Declares achievements in the build', 'warn', 'no boly/achievements.json next to the executable — achievements are managed on boly.cl'),
+    ])
+    r.skipped = true
+    r.failed = false
+    return r
+  }
+
+  const checks = m.issues.map((issue) =>
+    check(`${issue.code}${issue.path ? ` (${issue.path})` : ''}`, issue.level === 'error' ? 'fail' : 'warn', issue.message),
+  )
+  if (m.status === 'ok') {
+    checks.unshift(check(`Valid manifest: ${m.achievements.length} achievements (${m.manifestPath})`, 'pass'))
+  } else if (!checks.some((c) => c.status === 'fail')) {
+    checks.push(check('Valid manifest', 'fail', 'Boly will not apply these achievements'))
+  }
   return result(title, checks, null)
 }
 
@@ -493,6 +533,7 @@ const SCENARIOS = [
   { id: 4, title: 'Repeated failures → quit (after ~2 consecutive)', run: scenarioEscalate },
   { id: 5, title: 'Missing -key → quit immediately, no heartbeat', run: scenarioMissingKey },
   { id: 6, title: 'Achievements — reported, retried, never counted twice', run: scenarioAchievements },
+  { id: 7, title: 'Achievement manifest — boly/achievements.json', run: scenarioManifest },
 ]
 
 module.exports = { SCENARIOS }

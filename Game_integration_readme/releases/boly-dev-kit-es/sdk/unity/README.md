@@ -89,6 +89,23 @@ Cómo se envían:
 - Para volver a probar un desbloqueo con tu cuenta, usa **Borrar mi progreso
   de prueba** en la página de logros de boly.cl.
 
+## Logros declarados en la build
+
+En vez de crearlos en boly.cl, el juego puede traer sus logros en
+`<proyecto>/boly/achievements.json` (con los íconos en `boly/icons/`). La
+carpeta va en la raíz del proyecto, junto a `Assets/` y **no dentro**, para
+que Unity no importe los íconos. Al compilar, el SDK la copia junto al `.exe`
+(`IPostprocessBuildWithReport`), así el zip que subes ya la lleva. Al subir la
+build, Boly crea los logros nuevos como borradores y los activa cuando la
+build se aprueba.
+
+En el editor, un `Unlock`/`Increment`/`SetProgress` con un `api_name` que no
+está en el archivo muestra un aviso en la consola.
+
+Valida el archivo y genera las constantes con el verificador del kit:
+`boly-verify-win.exe manifest <carpeta del build> --constants unity`.
+Formato completo: [`spec/ACHIEVEMENTS_MANIFEST.md`](../spec/ACHIEVEMENTS_MANIFEST.md).
+
 ## Configuración (Boly ▸ Settings)
 
 | Campo | Default | |

@@ -549,6 +549,26 @@ boly_on_session_ended(function(_reason) { save_progress(); });</div>
            Defínelos en <b>boly.cl ▸ Panel de Desarrollador ▸ tu juego ▸ Gestionar logros</b> (nombre, cómo se
            consigue, meta y clave), descarga ahí el <b>archivo de constantes</b> de tu motor y reporta el progreso
            desde tu código. ¿Sin logros? Salta esto: el juego funciona igual.</p>
+        <div class="callout tip"><span class="ico">📦</span>
+          <div>
+            <span data-lang="en"><b>Or ship them in the build.</b> Put a <code>boly/achievements.json</code> (icons in
+            <code>boly/icons/</code>) next to your executable: Boly reads it when you upload the build, creates the new
+            achievements as drafts only you can test, and activates them when the build is approved. Unity copies
+            <code>&lt;project&gt;/boly/</code> for you when building; Godot does it on export from <code>res://boly/</code>
+            (add an empty <code>.gdignore</code> inside); in Unreal and GameMaker copy it next to the .exe yourself.
+            Check it and generate the constants file with
+            <code>boly-verify-win.exe manifest &lt;build folder&gt; --constants unity</code>. Full format in
+            <code>sdk/BOLY_SDK.md</code> §4.</span>
+            <span data-lang="es"><b>O tráelos en la build.</b> Pon un <code>boly/achievements.json</code> (íconos en
+            <code>boly/icons/</code>) junto al ejecutable: Boly lo lee al subir la build, crea los logros nuevos como
+            borradores que solo tú puedes probar y los activa cuando la build se aprueba. Unity copia
+            <code>&lt;proyecto&gt;/boly/</code> por ti al compilar; Godot lo hace al exportar desde <code>res://boly/</code>
+            (agrega un <code>.gdignore</code> vacío dentro); en Unreal y GameMaker cópiala tú junto al .exe. Revísalo y
+            genera el archivo de constantes con
+            <code>boly-verify-win.exe manifest &lt;carpeta del build&gt; --constants unity</code>. Formato completo en
+            <code>sdk/BOLY_SDK.md</code> §4.</span>
+          </div>
+        </div>
         <div class="engine-only show" data-engine="unity">
 <div class="code">BolySDK.Achievements.Unlock(BolyAchievements.NIVEL_5_COMPLETO);
 BolySDK.Achievements.Increment(BolyAchievements.RESPONDER_100);     // +1
@@ -663,6 +683,9 @@ boly_on_achievement_unlocked(function(_id, _current, _target) { show_popup(_id);
             <tr><td>6</td>
               <td><b><span data-lang="en">Achievements</span><span data-lang="es">Logros</span></b></td>
               <td><span data-lang="en">reports a test achievement, retries it after a failure without counting it twice, and keeps playing (the verifier triggers it — no code needed)</span><span data-lang="es">reporta un logro de prueba, lo reintenta tras un fallo sin contarlo dos veces y sigue jugando (el verificador lo provoca: no necesitas programar nada)</span></td></tr>
+            <tr><td>7</td>
+              <td><b><span data-lang="en">Achievement manifest</span><span data-lang="es">Manifiesto de logros</span></b></td>
+              <td><span data-lang="en">if <code>boly/achievements.json</code> sits next to the .exe, checks it and its icons exactly as Boly will on upload (SKIP when the game doesn't declare achievements in the build)</span><span data-lang="es">si hay un <code>boly/achievements.json</code> junto al .exe, lo revisa con sus íconos igual que Boly al subir la build (SKIP si el juego no declara sus logros en la build)</span></td></tr>
           </tbody>
         </table>
         <div class="callout tip"><span class="ico">✅</span>

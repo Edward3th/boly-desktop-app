@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://boly.cl/schemas/achievements-1.json",
+  "title": "Boly — manifiesto de logros (boly/achievements.json)",
+  "description": "Lista completa de los logros del juego en esta build. Ver spec/ACHIEVEMENTS_MANIFEST.md.",
+  "type": "object",
+  "required": ["version", "achievements"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": { "const": 1, "description": "Versión del formato." },
+    "achievements": {
+      "type": "array",
+      "maxItems": 200,
+      "description": "Los logros, en el orden en que se muestran.",
+      "items": { "$ref": "#/definitions/achievement" }
+    }
+  },
+  "definitions": {
+    "localizedText": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "es": { "type": "string" },
+        "en": { "type": "string" }
+      }
+    },
+    "achievement": {
+      "type": "object",
+      "required": ["api_name", "name"],
+      "additionalProperties": false,
+      "properties": {
+        "api_name": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]{0,63}$",
+          "description": "Clave que usa el código, p. ej. NIVEL_5_COMPLETO. No cambia nunca."
+        },
+        "name": {
+          "allOf": [{ "$ref": "#/definitions/localizedText" }],
+          "properties": {
+            "es": { "maxLength": 80 },
+            "en": { "maxLength": 80 }
+          },
+          "description": "Nombre visible. Basta un idioma."
+        },
+        "description": {
+          "allOf": [{ "$ref": "#/definitions/localizedText" }],
+          "properties": {
+            "es": { "maxLength": 300 },
+            "en": { "maxLength": 300 }
+          },
+          "description": "Cómo se consigue, tal como lo lee el jugador."
+        },
+        "target": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000,
+          "default": 1,
+          "description": "1 = se consigue de una vez; N = progreso hasta N."
+        },
+        "hidden": {
+          "type": "boolean",
+          "default": false,
+          "description": "Oculto hasta desbloquearlo."
+        },
+        "icon": {
+          "type": "string",
+          "pattern": "^(?!/)(?!.*\\\\)(?!(.*/)?\\.\\.?(/|$)).+$",
+          "description": "Ruta relativa a boly/, p. ej. icons/nivel_5.png. PNG o JPEG cuadrado, 64-512 px, máximo 256 KB."
+        }
+      }
+    }
+  }
+}

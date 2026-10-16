@@ -80,6 +80,18 @@ Cómo se envían:
 > **Estado:** escrito siguiendo el SDK de Unity (que sí está verificado), pero
 > aún sin probar en GameMaker. Pásalo por el verifier (escenario 6) antes de publicarlo.
 
+## Logros declarados en la build
+
+En vez de crearlos en boly.cl, el juego puede traer sus logros en una carpeta
+`boly/` (`achievements.json` + `icons/`). Guárdala fuera de los assets del
+proyecto y **cópiala a mano junto al `.exe`** del build antes de comprimirlo.
+Al subir la build, Boly crea los logros nuevos como borradores y los activa
+cuando la build se aprueba.
+
+Valida el archivo y genera las constantes con el verificador del kit:
+`boly-verify-win.exe manifest <carpeta del build> --constants gamemaker`.
+Formato completo: [`spec/ACHIEVEMENTS_MANIFEST.md`](../spec/ACHIEVEMENTS_MANIFEST.md).
+
 ## Notas
 
 - "Modo editor" = correr desde el IDE (`GM_build_type == "run"`) sin `-key`.
