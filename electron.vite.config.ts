@@ -24,6 +24,11 @@ export default defineConfig({
     plugins: [vue()],
     build: {
       rollupOptions: {
+        // Second page: the achievement notice window (toast.html)
+        input: {
+          index: resolve('src/renderer/index.html'),
+          toast: resolve('src/renderer/toast.html')
+        },
         output: {
           manualChunks: {
             vendor: ['vue', 'vue-router', 'pinia'],

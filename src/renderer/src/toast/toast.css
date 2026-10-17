@@ -1,0 +1,147 @@
+/* The achievement notice (toast.html). The window is 400x120 and transparent;
+   the card sits in its bottom-right corner. One notice = 5.6 s, the same
+   SHOW_MS the main process waits before the next one. */
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  user-select: none;
+  cursor: default;
+}
+
+.toast {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  box-sizing: border-box;
+  width: 380px;
+  min-height: 92px;
+  padding: 12px 16px 12px 12px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-radius: 14px;
+  color: #fbfbfb;
+  font-family: 'Poppins', sans-serif;
+  background: linear-gradient(160deg, #2a1b4f, #1b1233);
+  box-shadow:
+    0 0 0 2px rgba(188, 61, 228, 0.55),
+    0 10px 28px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+  opacity: 0;
+  transform: translateX(110%);
+}
+
+.toast:empty {
+  display: none;
+}
+
+/* Light sweep across the card while it is visible */
+.toast::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, 0.18) 50%, transparent 65%);
+  transform: translateX(-120%);
+  pointer-events: none;
+}
+
+.toast.play {
+  animation: toast-in-out 5.4s cubic-bezier(0.2, 0.9, 0.25, 1) forwards;
+}
+
+.toast.play::after {
+  animation: toast-shine 1.1s ease-out 0.45s 1 forwards;
+}
+
+@keyframes toast-in-out {
+  0% {
+    opacity: 0;
+    transform: translateX(110%);
+  }
+  8% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  90% {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(110%);
+  }
+}
+
+@keyframes toast-shine {
+  to {
+    transform: translateX(120%);
+  }
+}
+
+.icon {
+  flex: 0 0 64px;
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(251, 251, 251, 0.08);
+  box-shadow: 0 0 14px rgba(252, 153, 4, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.icon.trophy {
+  background: radial-gradient(circle at 35% 30%, #ffd36b, #fc9904 70%);
+  color: #3b2300;
+}
+
+.icon.trophy svg {
+  width: 38px;
+  height: 38px;
+}
+
+.text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.label {
+  font-family: 'Anton', Impact, sans-serif;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #fc9904;
+}
+
+.name {
+  font-weight: 700;
+  font-size: 17px;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.description {
+  font-size: 12px;
+  line-height: 1.3;
+  color: rgba(251, 251, 251, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

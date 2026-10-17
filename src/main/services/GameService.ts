@@ -2,6 +2,7 @@ import { spawn, exec } from 'child_process'
 import { BrowserWindow } from 'electron'
 import axios from 'axios'
 import { WindowManager } from './WindowManager'
+import { AchievementNotifier } from './AchievementNotifier'
 import { AuthService } from './AuthService'
 import { LocalGameServer } from './LocalGameServer'
 
@@ -110,6 +111,7 @@ export default class GameService {
     const stoppedGameId = this.activeGameSession?.game_id
     this.activeGameSession = null
     this.gameSessionLaunching = false
+    AchievementNotifier.getInstance().stop()
 
     if (stoppedGameId) {
       WindowManager.getInstance().send('game-stopped', {
@@ -218,8 +220,19 @@ export default class GameService {
         // -key alone. Once every game is rebuilt with the new ParamsCatcher,
         // drop -token here to close the argv JWT-leak (see
         // Game_integration_readme.md → "Completing the migration").
-        const args = `-game_id ${reqValidate.game_id} -key ${validationResponse.data.tempKey} -token ${token}`
-        const appProcess = spawn('"' + appPath + '"', args.split(' '), {
+        // Folder where the SDK drops unlock notices for the Steam-style popup
+        // (boly-sdk spec/PROTOCOL.md §5.1). Quoted: with shell: true the
+        // arguments go through cmd.exe, and the user's profile path can
+        // contain spaces.
+        const notifier = AchievementNotifier.getInstance()
+        const eventsDir = notifier.createSessionFolder(game_id)
+        const args = [
+          '-game_id', String(reqValidate.game_id),
+          '-key', validationResponse.data.tempKey,
+          '-token', token,
+          '-boly_events_dir', `"${eventsDir}"`
+        ]
+        const appProcess = spawn('"' + appPath + '"', args, {
           shell: true,
           detached: false
         })
@@ -248,6 +261,7 @@ export default class GameService {
         }
 
         this.gameSessionLaunching = false
+        notifier.start(game_id, validationResponse.data.tempKey, eventsDir)
 
         WindowManager.getInstance().send('game-started', {
           gameId: game_id,
