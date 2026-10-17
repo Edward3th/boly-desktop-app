@@ -243,7 +243,12 @@ namespace Boly
             RemoveBatch(batch);
 
             // Despues de sacar el lote de la cola, asi PendingCount ya es el real.
-            foreach (var state in unlocked) BolySDK.Achievements.RaiseUnlocked(state);
+            // La app de Boly muestra su aviso; el juego recibe OnUnlocked.
+            foreach (var state in unlocked)
+            {
+                BolyAppNotice.WriteUnlock(BolyRuntime.Instance?.EventsDir, state);
+                BolySDK.Achievements.RaiseUnlocked(state);
+            }
         }
 
         void RemoveBatch(List<PendingOp> batch)

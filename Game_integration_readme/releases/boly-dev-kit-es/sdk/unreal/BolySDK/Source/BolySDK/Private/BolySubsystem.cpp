@@ -82,12 +82,46 @@ void UBolySubsystem::Deinitialize()
 	Super::Deinitialize();
 }
 
+// Separa la linea de comandos por espacios, pero deja entero un "valor entre
+// comillas": la carpeta de -boly_events_dir puede tener espacios, y
+// FCommandLine::Get() entrega la linea tal cual, con las comillas.
+static TArray<FString> SplitCommandLine(const FString& Line)
+{
+	TArray<FString> Tokens;
+	FString Current;
+	bool bInQuotes = false;
+	for (int32 i = 0; i < Line.Len(); ++i)
+	{
+		const TCHAR Char = Line[i];
+		if (Char == TEXT('"'))
+		{
+			bInQuotes = !bInQuotes;
+		}
+		else if (Char == TEXT(' ') && !bInQuotes)
+		{
+			if (!Current.IsEmpty())
+			{
+				Tokens.Add(Current);
+				Current.Reset();
+			}
+		}
+		else
+		{
+			Current.AppendChar(Char);
+		}
+	}
+	if (!Current.IsEmpty())
+	{
+		Tokens.Add(Current);
+	}
+	return Tokens;
+}
+
 void UBolySubsystem::ParseCommandLine()
 {
 	// El launcher envia los argumentos separados por ESPACIO ("-key abc"), no
 	// "-key=abc", y FParse::Value solo entiende el formato con "=".
-	TArray<FString> Tokens;
-	FString(FCommandLine::Get()).ParseIntoArray(Tokens, TEXT(" "), /*CullEmpty=*/true);
+	const TArray<FString> Tokens = SplitCommandLine(FCommandLine::Get());
 
 	for (int32 i = 0; i < Tokens.Num() - 1; ++i)
 	{
@@ -108,6 +142,10 @@ void UBolySubsystem::ParseCommandLine()
 		else if (Tokens[i].Equals(TEXT("-boly_test_achievement"), ESearchCase::IgnoreCase))
 		{
 			TestAchievement = Value;
+		}
+		else if (Tokens[i].Equals(TEXT("-boly_events_dir"), ESearchCase::IgnoreCase))
+		{
+			EventsDir = Value;
 		}
 		else if (Tokens[i].Equals(TEXT("-heartbeat_seconds"), ESearchCase::IgnoreCase))
 		{
@@ -545,8 +583,10 @@ void UBolySubsystem::OnFlushResponse(FHttpRequestPtr Request, FHttpResponsePtr R
 
 	RemoveFirstPending(InFlightCount);
 	// Despues de sacar el lote de la cola, asi GetPendingAchievementCount ya es el real.
+	// La app de Boly muestra su aviso; el juego recibe OnAchievementUnlocked.
 	for (const TPair<FString, FAchievementState>& Entry : Unlocked)
 	{
+		WriteAppNotice(Entry.Key, Entry.Value.Current, Entry.Value.Target);
 		OnAchievementUnlocked.Broadcast(Entry.Key, Entry.Value.Current, Entry.Value.Target);
 	}
 	FlushAchievements();
@@ -658,4 +698,37 @@ bool UBolySubsystem::IsTestAchievementAllowed() const
 		Host.Split(TEXT(":"), &Host, nullptr);
 	}
 	return Host == TEXT("localhost") || Host == TEXT("::1") || Host.StartsWith(TEXT("127."));
+}
+
+// Un archivo JSON por desbloqueo en la carpeta de -boly_events_dir: primero
+// .tmp y despues renombrado, asi la app nunca lee uno a medias. Sin carpeta no
+// se escribe nada, y un error de disco nunca afecta al juego.
+void UBolySubsystem::WriteAppNotice(const FString& ApiName, int32 Current, int32 Target) const
+{
+	if (EventsDir.IsEmpty() || !IFileManager::Get().DirectoryExists(*EventsDir))
+	{
+		return;
+	}
+
+	FString Json;
+	const TSharedRef<TJsonWriter<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>> Writer =
+		TJsonWriterFactory<TCHAR, TCondensedJsonPrintPolicy<TCHAR>>::Create(&Json);
+	Writer->WriteObjectStart();
+	Writer->WriteValue(TEXT("type"), TEXT("achievement_unlocked"));
+	Writer->WriteValue(TEXT("api_name"), ApiName);
+	Writer->WriteValue(TEXT("current"), Current);
+	Writer->WriteValue(TEXT("target"), Target);
+	Writer->WriteValue(TEXT("ts"), FDateTime::UtcNow().ToIso8601());
+	Writer->WriteObjectEnd();
+	Writer->Close();
+
+	const FString FileName = FGuid::NewGuid().ToString(EGuidFormats::Digits).ToLower();
+	const FString TmpPath = FPaths::Combine(EventsDir, FileName + TEXT(".json.tmp"));
+	const FString FinalPath = FPaths::Combine(EventsDir, FileName + TEXT(".json"));
+	if (!FFileHelper::SaveStringToFile(Json, *TmpPath, FFileHelper::EEncodingOptions::ForceUTF8WithoutBOM) ||
+		!IFileManager::Get().Move(*FinalPath, *TmpPath))
+	{
+		IFileManager::Get().Delete(*TmpPath);
+		UE_LOG(LogBoly, Warning, TEXT("No se pudo avisar a la app del logro %s."), *ApiName);
+	}
 }

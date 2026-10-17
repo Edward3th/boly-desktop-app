@@ -39,7 +39,7 @@ class BOLYSDK_API UBolySubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
-	static constexpr const TCHAR* SdkVersion = TEXT("0.2.0");
+	static constexpr const TCHAR* SdkVersion = TEXT("0.3.0");
 
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
@@ -131,6 +131,9 @@ private:
 	// Solo para el verifier: logro a desbloquear apenas la sesion este lista.
 	// Se ignora salvo que ApiBase apunte a este mismo equipo.
 	FString TestAchievement;
+	// Carpeta donde avisar a la app de Boly de cada desbloqueo, para su aviso
+	// tipo Steam (spec/PROTOCOL.md §5.1). Vacia si la app no la paso.
+	FString EventsDir;
 
 	FString SessionId;
 	FString LearnerId;
@@ -183,6 +186,7 @@ private:
 	void RemoveFirstPending(int32 Count);
 	void LoadPending();
 	void SavePending() const;
+	void WriteAppNotice(const FString& ApiName, int32 Current, int32 Target) const;
 	bool IsTestAchievementAllowed() const;
 
 	void ParseCommandLine();

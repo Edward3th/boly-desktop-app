@@ -28,6 +28,9 @@ namespace Boly
 
         BolySettings settings;
         BolyLaunchArgs launch;
+
+        // Carpeta de avisos para la app de Boly (-boly_events_dir), o null.
+        internal string EventsDir => launch.EventsDir;
         bool firstValidation = true;
         int consecutiveFailures;
         bool ending;

@@ -102,7 +102,10 @@ primera escena y sobrevive a los cambios de escena. Dentro del editor, sin
 2. Crea el objeto `obj_boly` con **Persistent** activado, evento **Create** =
    `objects/obj_boly/Create_0.gml`, evento **Async ▸ HTTP** = `objects/obj_boly/Other_62.gml`.
 3. Coloca una instancia de `obj_boly` en la **primera** room.
-4. Si había un `obj_params_catcher`: bórralo. Para conservar un flujo de room de
+4. Para el aviso de logros de la app de Boly: en **Game Options ▸ Windows ▸
+   General**, activa **Disable file system sandbox** (si no puedes editarlo,
+   pídeselo a la persona).
+5. Si había un `obj_params_catcher`: bórralo. Para conservar un flujo de room de
    arranque, en el Creation Code de la instancia de `obj_boly` escribe
    `room_on_ready = rm_main;`.
 
@@ -172,6 +175,10 @@ y qué pasa al publicar). Lo esencial:
   sola vez por logro y jugador.
 - No agregues reintentos ni guardado propio: el SDK ya encola en disco y
   reintenta sin contar dos veces.
+- No hace falta un popup propio: la app de Boly muestra un aviso tipo Steam
+  encima del juego. Para que se vea, el juego tiene que usar pantalla completa
+  **sin bordes** (no exclusiva); detalles en `LOGROS.md`, sección 6. Si el
+  juego usa pantalla completa exclusiva, avísale a la persona.
 
 ## Paso 3: compilar un ejecutable de Windows
 
@@ -226,6 +233,8 @@ Desde la carpeta del kit (PowerShell):
 | FAIL "Cadence is steady" | El heartbeat se detuvo | Cargas bloqueantes; usa carga asíncrona |
 | WARN "Identifies the SDK" | El build todavía usa ParamsCatcher | Termina el Paso 1 |
 | FAIL en "Achievements" | SDK modificado o incompleto | Vuelve a copiar el SDK del kit sin cambios; no envíes logros con tu propio código de red. En Godot, Unreal o GameMaker, si sigue fallando con el SDK del kit, repórtalo a la persona (posible error del SDK) |
+| WARN "Notifies the Boly app of the unlock" | SDK anterior a 0.3 | Vuelve a copiar el SDK del kit |
+| FAIL "Notifies the Boly app of the unlock" | SDK modificado; en GameMaker, el sandbox de archivos activo | Copia el SDK sin cambios; en GameMaker desactiva el sandbox (Paso 1) |
 | FAIL en "Achievement manifest" | `boly/achievements.json` con errores | Corrige cada error en el campo que indica (`achievements[2].target`, etc.) |
 | WARN `icon_missing` | Ruta o mayúsculas distintas | Usa el nombre exacto del archivo; el mensaje sugiere el correcto |
 | FAIL en un motor nuevo (Godot, Unreal, GameMaker) que no se explica por lo anterior | Posible error del SDK | No lo parches: reporta a la persona la salida del verificador para enviarla a Boly |

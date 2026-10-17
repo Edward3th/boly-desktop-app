@@ -49,6 +49,8 @@ for (var _i = 1; _i < _n; _i++) {
         }
     } else if (_arg == "-boly_test_achievement") {
         test_achievement = _value;
+    } else if (_arg == "-boly_events_dir") {
+        global.__boly.events_dir = _value;
     } else if (_arg == "-heartbeat_seconds") {
         try {
             if (real(_value) > 0) heartbeat_seconds = real(_value);

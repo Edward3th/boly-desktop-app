@@ -8,7 +8,7 @@
 //   boly_on_session_ended(function(_razon) { guardar_partida(); });
 //   boly_achievement_unlock(BOLY_ACH_NIVEL_5_COMPLETO);
 
-#macro BOLY_VERSION "0.2.0"
+#macro BOLY_VERSION "0.3.0"
 
 // Por que termino la sesion. El SDK cierra el juego justo despues de avisar.
 enum BOLY_END_REASON {
@@ -36,7 +36,10 @@ global.__boly = {
     pending_file: "",
     on_achievement_unlocked: [],
     on_achievements_synced: [],
-    uuid_counter: 0
+    uuid_counter: 0,
+    // Carpeta donde avisar a la app de Boly de cada desbloqueo, para su aviso
+    // tipo Steam (spec/PROTOCOL.md §5.1). Vacia si la app no la paso.
+    events_dir: ""
 };
 
 // true desde el primer heartbeat valido (o de inmediato al correr desde el IDE).
@@ -334,6 +337,11 @@ function __boly_apply_results(_count, _text) {
         }
     }
     __boly_remove_first_pending(_count);
+    // Solo desbloqueos confirmados por el servidor: la app de Boly muestra su
+    // aviso y el juego recibe sus callbacks.
+    for (var _k = 0; _k < array_length(_unlocked); _k++) {
+        __boly_write_app_notice(_unlocked[_k], global.__boly.achievements[$ _unlocked[_k]]);
+    }
     // Despues de sacar el lote de la cola, asi boly_achievement_pending() ya es el real.
     __boly_call_unlocked(_unlocked);
 }
@@ -346,6 +354,51 @@ function __boly_call_unlocked(_names) {
             _callbacks[_j](_names[_i], _state.current, _state.target);
         }
     }
+}
+
+// Un archivo JSON por desbloqueo en la carpeta de -boly_events_dir: primero
+// .tmp y despues renombrado, asi la app nunca lee uno a medias. Sin carpeta no
+// se escribe nada, y un error nunca afecta al juego.
+//
+// En Windows, GameMaker solo deja escribir fuera del area de guardado con
+// "Disable file system sandbox" activado (Game Options > Windows > General).
+// Con el sandbox activo la carpeta no se ve y el aviso simplemente no sale.
+function __boly_write_app_notice(_api_name, _state) {
+    var _dir = global.__boly.events_dir;
+    if (_dir == "" || !directory_exists(_dir)) return;
+    try {
+        var _name = string_replace_all(__boly_new_uuid(), "-", "");
+        var _last = string_char_at(_dir, string_length(_dir));
+        var _base = (_last == "\\" || _last == "/") ? _dir : _dir + "\\";
+        var _tmp = _base + _name + ".json.tmp";
+        var _file = file_text_open_write(_tmp);
+        if (_file < 0) return;
+        file_text_write_string(_file, json_stringify({
+            type: "achievement_unlocked",
+            api_name: _api_name,
+            current: _state.current,
+            target: _state.target,
+            ts: __boly_utc_iso8601()
+        }));
+        file_text_close(_file);
+        if (!file_rename(_tmp, _base + _name + ".json")) {
+            file_delete(_tmp);
+        }
+    } catch (_e) {
+        show_debug_message("[Boly] No se pudo avisar a la app del logro " + string(_api_name) + ".");
+    }
+}
+
+// "2026-10-17T12:00:00Z"
+function __boly_utc_iso8601() {
+    var _tz = date_get_timezone();
+    date_set_timezone(timezone_utc);
+    var _now = date_current_datetime();
+    var _two = function(_n) { return (_n < 10 ? "0" : "") + string(_n); };
+    var _iso = string(date_get_year(_now)) + "-" + _two(date_get_month(_now)) + "-" + _two(date_get_day(_now))
+        + "T" + _two(date_get_hour(_now)) + ":" + _two(date_get_minute(_now)) + ":" + _two(date_get_second(_now)) + "Z";
+    date_set_timezone(_tz);
+    return _iso;
 }
 
 function __boly_remove_first_pending(_count) {

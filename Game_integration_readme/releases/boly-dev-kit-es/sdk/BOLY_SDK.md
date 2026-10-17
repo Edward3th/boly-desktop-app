@@ -1,4 +1,4 @@
-# Boly SDK 0.2.0 — referencia para integrar con IA
+# Boly SDK 0.3.0 — referencia para integrar con IA
 
 Referencia completa del SDK de Boly para un asistente de IA (Claude Code,
 Cursor, Copilot, etc.) que trabaja **dentro del proyecto de un juego** en
@@ -41,6 +41,8 @@ El SDK:
 5. **Cierra el juego** cuando la sesión termina, y avisa justo antes
    (`session ended`) para que el juego guarde. El cierre no se puede cancelar.
 6. Reporta **logros** (desde 0.2.0) con una cola en disco que reintenta sola.
+7. Le avisa a la **app de Boly** de cada logro desbloqueado, para que muestre
+   su aviso tipo Steam encima del juego (desde 0.3.0, §4).
 
 Razones de cierre (`EndReason`):
 
@@ -221,7 +223,8 @@ Garantías del servidor:
 - Al iniciar la sesión el SDK descarga el estado de los logros (`Synced`).
   Desde ahí puedes consultar `IsUnlocked` / el progreso conocido.
 - El aviso **Unlocked** llega una sola vez por logro y jugador, cuando el
-  servidor confirma un desbloqueo nuevo. Es el momento de mostrar un popup.
+  servidor confirma un desbloqueo nuevo. La app de Boly ya muestra su propio
+  aviso (ver abajo); úsalo para efectos dentro del juego.
 - Un `api_name` con formato inválido se descarta con un error en la consola.
   Uno con formato válido pero que no existe en el juego aparece como
   `[Boly] El logro "..." no existe en este juego`.
@@ -229,6 +232,33 @@ Garantías del servidor:
   dispara el aviso de desbloqueo localmente para probar el popup.
 - Para volver a probar un desbloqueo real con su cuenta, la persona usa
   **Borrar mi progreso de prueba** en la página de logros de boly.cl.
+
+### El aviso de Boly (SDK 0.3+)
+
+Cuando el servidor confirma un desbloqueo, la **app de Boly** muestra un aviso
+tipo Steam encima del juego, abajo a la derecha: ícono, "¡Logro
+desbloqueado!", nombre y un sonido corto. El juego no tiene que dibujar nada.
+
+- Funciona solo: el SDK le avisa a la app por una carpeta que la app pasa en
+  `-boly_events_dir` (spec `PROTOCOL.md` §5.1). No hay nada que programar.
+- `OnUnlocked` sigue disponible para efectos **dentro** del juego (una
+  animación, desbloquear un objeto). No hace falta un popup propio.
+- **Pantalla completa sin bordes.** Sobre un juego en pantalla completa
+  *exclusiva* ninguna ventana se ve, y el aviso tampoco:
+
+  | Motor | Modo de pantalla completa que muestra el aviso |
+  |---|---|
+  | Unity | *Fullscreen Window* (el default de Windows); no *Exclusive Fullscreen* |
+  | Godot | *Fullscreen*; no *Exclusive Fullscreen* |
+  | Unreal | *Windowed Fullscreen* (el default de UE5); no *Fullscreen* |
+  | GameMaker | Ventana o pantalla completa sin bordes |
+
+- **GameMaker:** el aviso requiere **Game Options ▸ Windows ▸ General ▸
+  Disable file system sandbox**. Con el sandbox activo, GameMaker no puede
+  escribir fuera de su área de guardado y el aviso no aparece. El juego sigue
+  funcionando igual.
+- El verificador lo revisa en el escenario 6 ("Notifies the Boly app of the
+  unlock").
 
 ### Buenas prácticas
 
@@ -262,7 +292,7 @@ Garantías del servidor:
 
 | Miembro | Tipo | Descripción |
 |---|---|---|
-| `BolySDK.Version` | `const string` | `"0.2.0"` |
+| `BolySDK.Version` | `const string` | `"0.3.0"` |
 | `BolySDK.IsReady` | `bool` | Sesión validada (en el editor, de inmediato). |
 | `BolySDK.OnReady` | `event Action` | Una vez, con el primer heartbeat válido. Si te suscribes tarde no se dispara: revisa `IsReady` antes. |
 | `BolySDK.OnSessionEnded` | `event Action<BolyEndReason>` | Justo antes de cerrar el juego. |
@@ -362,7 +392,7 @@ pausa) y sobrevive a `change_scene_to_file()`.
 
 | Miembro | Tipo | Descripción |
 |---|---|---|
-| `Boly.VERSION` | `const String` | `"0.2.0"` |
+| `Boly.VERSION` | `const String` | `"0.3.0"` |
 | `Boly.is_ready` | `bool` | Sesión validada (en el editor, en el frame siguiente al arranque). |
 | `Boly.session_ready` | `signal` | Una vez. Si conectas tarde, revisa `is_ready` antes. |
 | `Boly.session_ended(reason: EndReason)` | `signal` | Justo antes de cerrar. |
@@ -540,6 +570,8 @@ Boly->SetAchievementProgress(BolyAchievements::ESTRELLAS_50, TotalStars);
 3. Pon una instancia de `obj_boly` en la **primera** room del juego.
 4. Opcional, flujo "room de carga → juego": en el Creation Code de esa
    instancia, `room_on_ready = rm_main;`.
+5. Para el aviso de logros de la app de Boly: **Game Options ▸ Windows ▸
+   General ▸ Disable file system sandbox** (ver §4, "El aviso de Boly").
 
 Si no puedes crear assets editando `.yy`/`.yyp` con seguridad, deja el código
 listo y pide a la persona que haga estos pasos en el IDE.
@@ -548,7 +580,7 @@ listo y pide a la persona que haga estos pasos en el IDE.
 
 | Función | Retorna | Descripción |
 |---|---|---|
-| `BOLY_VERSION` | macro | `"0.2.0"` |
+| `BOLY_VERSION` | macro | `"0.3.0"` |
 | `boly_is_ready()` | `bool` | Sesión validada (desde el IDE, de inmediato). |
 | `boly_on_ready(cb)` | — | `cb()` cuando quede lista; si ya lo está, la llama al tiro. |
 | `boly_on_session_ended(cb)` | — | `cb(reason)` justo antes de cerrar. |
@@ -659,6 +691,8 @@ zip que se va a subir:
 | "Cadence is steady" | El heartbeat se detuvo | Cargas que bloquean el hilo principal; usa carga asíncrona |
 | WARN "Identifies the SDK" | Sigue el ParamsCatcher | Termina la migración (§6) |
 | Escenario 6 en WARN | SDK anterior a 0.2.0 | Copia el SDK actual del kit |
+| WARN "Notifies the Boly app of the unlock" | SDK anterior a 0.3.0 | Copia el SDK actual del kit |
+| FAIL "Notifies the Boly app of the unlock" | SDK modificado; en GameMaker, sandbox activo | Copia el SDK sin cambios; en GameMaker desactiva el sandbox de archivos |
 | Escenario 6 en FAIL | SDK modificado o error del SDK | Copia el SDK sin cambios; si sigue fallando en Godot/Unreal/GameMaker, repórtalo |
 | Escenario 7 en FAIL | `boly/achievements.json` con errores | Corrige lo que indica cada línea (campo y ubicación) |
 | Escenario 7 en WARN `icon_missing` | Ruta o mayúsculas distintas | Usa el nombre exacto del archivo; el mensaje sugiere el correcto |
@@ -681,6 +715,8 @@ servidor local). No los uses en el juego.
       `boly/achievements.json`), llamadas en los eventos correctos, popup en
       `OnUnlocked` (opcional).
 - [ ] Si el juego declara sus logros: `boly/` junto al `.exe` en la build.
+- [ ] Pantalla completa sin bordes (no exclusiva), para que se vea el aviso de
+      Boly. GameMaker: sandbox de archivos desactivado.
 - [ ] Build de Windows compilado y verificador con todos los escenarios en PASS.
 - [ ] Informe a la persona: archivos cambiados, ruta del `.exe`, resultado del
       verificador y los `api_name` conectados. La subida a boly.cl la hace ella.

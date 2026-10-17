@@ -350,6 +350,7 @@
                 <b>objects/obj_boly/Create_0.gml</b> and an <span class="gid">Async ▸ HTTP</span> event with
                 <b>objects/obj_boly/Other_62.gml</b>.</li>
             <li>Place one <b>obj_boly</b> instance in your <b>first</b> room (top of the Room Manager).</li>
+            <li>In <span class="gid">Game Options ▸ Windows ▸ General</span> check <b>Disable file system sandbox</b>: the Boly app's achievement notice needs it.</li>
           </ol>
           <p data-lang="es">En GameMaker no hay importación de paquete, así que son tres pegados (archivos en <b>sdk/gamemaker/</b>):</p>
           <ol data-lang="es">
@@ -358,6 +359,7 @@
                 <b>objects/obj_boly/Create_0.gml</b> y un evento <span class="gid">Async ▸ HTTP</span> con
                 <b>objects/obj_boly/Other_62.gml</b>.</li>
             <li>Coloca una instancia de <b>obj_boly</b> en tu <b>primera</b> room (arriba del todo en el Room Manager).</li>
+            <li>En <span class="gid">Game Options ▸ Windows ▸ General</span> activa <b>Disable file system sandbox</b>: lo necesita el aviso de logros de la app de Boly.</li>
           </ol>
           <p data-lang="en">Requires a 2024+ runtime.</p>
           <p data-lang="es">Requiere un runtime 2024 o superior.</p>
@@ -569,6 +571,16 @@ boly_on_session_ended(function(_reason) { save_progress(); });</div>
             <code>sdk/BOLY_SDK.md</code> §4.</span>
           </div>
         </div>
+        <div class="callout tip"><span class="ico">🏆</span>
+          <div>
+            <span data-lang="en"><b>No popup to build.</b> When an achievement unlocks, the Boly app shows a Steam-style
+            notice over the game (icon, name, chime). It needs <b>borderless</b> fullscreen — not exclusive — so it can
+            appear on top; in GameMaker, also turn off the file system sandbox.</span>
+            <span data-lang="es"><b>No tienes que programar un popup.</b> Cuando se desbloquea un logro, la app de Boly
+            muestra un aviso tipo Steam encima del juego (ícono, nombre y sonido). Para que se vea, usa pantalla completa
+            <b>sin bordes</b>, no exclusiva; en GameMaker, además, desactiva el sandbox de archivos.</span>
+          </div>
+        </div>
         <p data-lang="en">Step-by-step achievements guide (both ways, testing, publishing): <b>LOGROS.md</b> in this kit (Spanish).</p>
         <p data-lang="es">Guía paso a paso de logros (las dos formas, cómo probarlos y publicarlos): <b>LOGROS.md</b> en este kit.</p>
         <div class="engine-only show" data-engine="unity">
@@ -684,7 +696,7 @@ boly_on_achievement_unlocked(function(_id, _current, _target) { show_popup(_id);
               <td><span data-lang="en">refuses to start with no session at all</span><span data-lang="es">se niega a iniciar sin ninguna sesión</span></td></tr>
             <tr><td>6</td>
               <td><b><span data-lang="en">Achievements</span><span data-lang="es">Logros</span></b></td>
-              <td><span data-lang="en">reports a test achievement, retries it after a failure without counting it twice, and keeps playing (the verifier triggers it — no code needed)</span><span data-lang="es">reporta un logro de prueba, lo reintenta tras un fallo sin contarlo dos veces y sigue jugando (el verificador lo provoca: no necesitas programar nada)</span></td></tr>
+              <td><span data-lang="en">reports a test achievement, retries it after a failure without counting it twice, keeps playing, and tells the Boly app so it can show its notice (the verifier triggers it — no code needed)</span><span data-lang="es">reporta un logro de prueba, lo reintenta tras un fallo sin contarlo dos veces, sigue jugando y le avisa a la app de Boly para que muestre su aviso (el verificador lo provoca: no necesitas programar nada)</span></td></tr>
             <tr><td>7</td>
               <td><b><span data-lang="en">Achievement manifest</span><span data-lang="es">Manifiesto de logros</span></b></td>
               <td><span data-lang="en">if <code>boly/achievements.json</code> sits next to the .exe, checks it and its icons exactly as Boly will on upload (SKIP when the game doesn't declare achievements in the build)</span><span data-lang="es">si hay un <code>boly/achievements.json</code> junto al .exe, lo revisa con sus íconos igual que Boly al subir la build (SKIP si el juego no declara sus logros en la build)</span></td></tr>

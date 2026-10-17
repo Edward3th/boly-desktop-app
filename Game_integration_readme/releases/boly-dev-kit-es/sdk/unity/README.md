@@ -89,6 +89,15 @@ Cómo se envían:
 - Para volver a probar un desbloqueo con tu cuenta, usa **Borrar mi progreso
   de prueba** en la página de logros de boly.cl.
 
+## Aviso de Boly (SDK 0.3+)
+
+Cuando el servidor confirma un desbloqueo, la app de Boly muestra un aviso
+tipo Steam encima del juego. El SDK le avisa por la carpeta que la app pasa en
+`-boly_events_dir`; no hay nada que programar, y el evento de desbloqueo del
+SDK sigue disponible para efectos dentro del juego.
+
+Usa **Fullscreen Window** (el default en Windows), no *Exclusive Fullscreen*: sobre la pantalla completa exclusiva ninguna ventana se ve.
+
 ## Logros declarados en la build
 
 En vez de crearlos en boly.cl, el juego puede traer sus logros en

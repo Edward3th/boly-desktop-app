@@ -1,7 +1,7 @@
 {
 	"FileVersion": 3,
-	"Version": 1,
-	"VersionName": "0.1.0",
+	"Version": 3,
+	"VersionName": "0.3.0",
 	"FriendlyName": "Boly SDK",
 	"Description": "Licencia (heartbeat) y LumenAI para juegos publicados en Boly. Reemplaza al ValidationSubsystem (ParamsCatcher).",
 	"Category": "Boly",

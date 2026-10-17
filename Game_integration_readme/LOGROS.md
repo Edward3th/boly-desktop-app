@@ -133,6 +133,9 @@ responder bien), nunca en cada frame:
 - El progreso nunca baja ni pasa la meta.
 - Las llamadas no bloquean el juego. Si no hay conexión, se guardan en disco y
   se envían después, sin contar dos veces.
+- **No necesitas tu propio popup:** cuando Boly confirma el desbloqueo, la app
+  de Boly muestra un aviso encima del juego (sección 6). El aviso de
+  desbloqueo del SDK sirve para efectos dentro del juego.
 - **En el editor** (modo Play, F5 o PIE) no se envía nada a Boly:
   - Un desbloqueo dispara el aviso localmente, para que pruebes tu popup.
   - Unity y Godot muestran un aviso si el código usa un `api_name` que no está
@@ -221,7 +224,36 @@ de logros.
 
 ---
 
-## 6. Problemas comunes
+## 6. El aviso que ve el jugador
+
+Cuando un jugador desbloquea un logro, la **app de Boly** muestra un aviso
+tipo Steam encima del juego, abajo a la derecha: el ícono, "¡Logro
+desbloqueado!", el nombre del logro y un sonido corto. Si se desbloquean
+varios seguidos, aparecen uno tras otro.
+
+Para que se vea:
+
+- **El juego usa el SDK 0.3 o posterior** (el de este kit). Los juegos con un
+  SDK anterior tienen que recompilarse.
+- **Pantalla completa sin bordes, no exclusiva.** Sobre un juego en pantalla
+  completa exclusiva ninguna ventana se ve.
+
+  | Motor | Modo que muestra el aviso |
+  |---|---|
+  | Unity | *Fullscreen Window* (el default de Windows) |
+  | Godot | *Fullscreen* (no *Exclusive Fullscreen*) |
+  | Unreal | *Windowed Fullscreen* (el default de UE5) |
+  | GameMaker | Ventana o pantalla completa sin bordes |
+
+- **En GameMaker,** activa **Game Options ▸ Windows ▸ General ▸ Disable file
+  system sandbox**. Sin eso, el juego no puede avisarle a la app y el aviso no
+  sale (el juego funciona igual).
+- **El jugador usa la app de Boly 1.6.0 o posterior.** Se actualiza sola.
+
+El verificador del kit lo comprueba en el escenario 6: "Notifies the Boly app
+of the unlock".
+
+## 7. Problemas comunes
 
 | Mensaje o síntoma | Causa | Qué hacer |
 |---|---|---|
@@ -233,8 +265,10 @@ de logros.
 | El editor avisa "no está en boly/achievements.json" | El código usa un logro que el archivo no declara | Agrégalo al archivo o corrige el nombre |
 | El logro no aparece en boly.cl | La build todavía está en revisión (es un borrador) | Se activa cuando Boly aprueba la build |
 | En consola: "El logro … no existe en este juego" | El `api_name` no existe en Boly | Revisa el archivo de constantes o el manifiesto |
+| El aviso de Boly no aparece sobre el juego | Pantalla completa exclusiva, SDK anterior a 0.3 o, en GameMaker, el sandbox activo | Revisa la sección 6 |
+| WARN "Notifies the Boly app of the unlock" | El build usa un SDK anterior a 0.3 | Copia el SDK de este kit y recompila |
 
-## 7. Referencias
+## 8. Referencias
 
 - `sdk/BOLY_SDK.md`, sección 4: los logros explicados para un asistente de IA,
   con la API completa de cada motor en la sección 5.

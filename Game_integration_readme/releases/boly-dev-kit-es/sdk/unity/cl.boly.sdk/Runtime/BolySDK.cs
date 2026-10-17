@@ -47,7 +47,7 @@ namespace Boly
     //   BolySDK.Achievements.Unlock(BolyAchievements.NIVEL_5_COMPLETO);
     public static partial class BolySDK
     {
-        public const string Version = "0.2.0";
+        public const string Version = "0.3.0";
 
         // Valor del header X-Boly-SDK que acompana cada peticion.
         internal const string SdkHeader = "unity/" + Version;

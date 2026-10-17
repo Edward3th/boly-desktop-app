@@ -20,6 +20,9 @@ namespace Boly
         // Se ignora salvo que ApiBase apunte a este mismo equipo (ver
         // TestAchievementAllowed), asi no sirve para regalarse logros reales.
         public string TestAchievement;
+        // Carpeta donde avisar a la app de cada desbloqueo (spec §5.1); vacia
+        // si la app no la paso.
+        public string EventsDir;
 
         public static BolyLaunchArgs Parse(string[] args)
         {
@@ -47,6 +50,9 @@ namespace Boly
                         break;
                     case "-boly_test_achievement":
                         parsed.TestAchievement = value;
+                        break;
+                    case "-boly_events_dir":
+                        parsed.EventsDir = value;
                         break;
                     case "-heartbeat_seconds":
                         if (float.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out float seconds) && seconds > 0f)

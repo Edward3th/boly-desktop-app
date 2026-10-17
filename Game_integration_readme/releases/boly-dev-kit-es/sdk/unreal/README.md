@@ -89,6 +89,15 @@ Cómo se envían:
 > **Estado:** escrito siguiendo el SDK de Unity (que sí está verificado), pero
 > aún sin compilar. Pásalo por el verifier (escenario 6) antes de publicarlo.
 
+## Aviso de Boly (SDK 0.3+)
+
+Cuando el servidor confirma un desbloqueo, la app de Boly muestra un aviso
+tipo Steam encima del juego. El SDK le avisa por la carpeta que la app pasa en
+`-boly_events_dir`; no hay nada que programar, y el evento de desbloqueo del
+SDK sigue disponible para efectos dentro del juego.
+
+Usa **Windowed Fullscreen** (el default de UE5), no *Fullscreen*: sobre la pantalla completa exclusiva ninguna ventana se ve.
+
 ## Logros declarados en la build
 
 En vez de crearlos en boly.cl, el juego puede traer sus logros en una carpeta

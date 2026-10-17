@@ -30,7 +30,7 @@ signal achievement_unlocked(api_name: String, current: int, target: int)
 ## Llego el estado de los logros desde el servidor, al iniciar la sesion.
 signal achievements_synced
 
-const VERSION := "0.2.0"
+const VERSION := "0.3.0"
 ## Escena que se carga cuando la sesion queda lista ("" = ninguna). Equivale al
 ## flujo AuthScene -> MainGame del ParamsCatcher.
 const SETTING_SCENE_ON_READY := "boly/scene_on_ready"
@@ -67,6 +67,9 @@ var _heartbeat_seconds := 60.0
 # Solo para el verifier: logro a desbloquear apenas la sesion este lista. Se
 # ignora salvo que _api_base apunte a este mismo equipo.
 var _test_achievement := ""
+# Carpeta donde avisar a la app de Boly de cada desbloqueo, para su aviso tipo
+# Steam (spec/PROTOCOL.md §5.1). Vacia si la app no la paso.
+var _events_dir := ""
 
 var _first_validation := true
 var _consecutive_failures := 0
@@ -329,9 +332,36 @@ func _apply_results(batch: Array, text: String) -> void:
 				push_error("[Boly] Operacion de logro invalida para \"%s\"." % api_name)
 	_remove_batch(batch)
 	# Despues de sacar el lote de la cola, asi pending_achievements() ya es el real.
+	# La app de Boly muestra su aviso; el juego recibe la senal.
 	for api_name in unlocked:
 		var state: Dictionary = _achievement_states[api_name]
+		_write_app_notice(api_name, state)
 		achievement_unlocked.emit(api_name, state["current"], state["target"])
+
+
+# Un archivo JSON por desbloqueo en la carpeta de -boly_events_dir: primero
+# .tmp y despues renombrado, asi la app nunca lee uno a medias. Sin carpeta
+# no se escribe nada, y un error de disco nunca afecta al juego.
+func _write_app_notice(api_name: String, state: Dictionary) -> void:
+	if _events_dir == "" or not DirAccess.dir_exists_absolute(_events_dir):
+		return
+	var file_name := _new_uuid().replace("-", "")
+	var tmp_path := _events_dir.path_join(file_name + ".json.tmp")
+	var file := FileAccess.open(tmp_path, FileAccess.WRITE)
+	if file == null:
+		push_warning("[Boly] No se pudo avisar a la app del logro %s." % api_name)
+		return
+	file.store_string(JSON.stringify({
+		"type": "achievement_unlocked",
+		"api_name": api_name,
+		"current": state["current"],
+		"target": state["target"],
+		"ts": Time.get_datetime_string_from_system(true) + "Z",
+	}))
+	file.close()
+	if DirAccess.rename_absolute(tmp_path, _events_dir.path_join(file_name + ".json")) != OK:
+		DirAccess.remove_absolute(tmp_path)
+		push_warning("[Boly] No se pudo avisar a la app del logro %s." % api_name)
 
 
 func _set_state(api_name: String, current, target, unlocked: bool) -> void:
@@ -425,6 +455,8 @@ func _parse_args(args: PackedStringArray) -> void:
 					_heartbeat_seconds = value.to_float()
 			"-boly_test_achievement":
 				_test_achievement = value
+			"-boly_events_dir":
+				_events_dir = value
 
 
 func _send_heartbeat() -> void:

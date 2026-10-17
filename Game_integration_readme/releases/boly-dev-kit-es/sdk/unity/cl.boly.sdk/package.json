@@ -1,6 +1,6 @@
 {
   "name": "cl.boly.sdk",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "displayName": "Boly SDK",
   "description": "Licencia (heartbeat) y LumenAI para juegos publicados en Boly. Reemplaza al ParamsCatcher.",
   "unity": "2021.3",
