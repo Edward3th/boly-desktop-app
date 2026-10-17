@@ -1,5 +1,6 @@
 import { spawn, exec } from 'child_process'
 import { BrowserWindow } from 'electron'
+import { is } from '@electron-toolkit/utils'
 import axios from 'axios'
 import { WindowManager } from './WindowManager'
 import { AchievementNotifier } from './AchievementNotifier'
@@ -232,6 +233,9 @@ export default class GameService {
           '-token', token,
           '-boly_events_dir', `"${eventsDir}"`
         ]
+        // A dev build of the app talks to a local API: point the game at it
+        // too. The SDK accepts -api_base; the released app never sends it.
+        if (is.dev) args.push('-api_base', apiBaseUrl)
         const appProcess = spawn('"' + appPath + '"', args, {
           shell: true,
           detached: false

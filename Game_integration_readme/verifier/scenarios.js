@@ -4,6 +4,9 @@
 // the local mock, drives a specific response sequence, and returns a list of
 // PASS/FAIL checks mapping back to the heartbeat contract.
 
+const fs = require('fs')
+const os = require('os')
+const path = require('path')
 const { MockServer, VALIDATE_PATH } = require('./mock-server')
 const { makeKey, launchGame, waitForExit, killGame } = require('./runner')
 
@@ -398,6 +401,8 @@ async function scenarioAchievements(ctx) {
   })
   const port = await server.start(ctx.port)
   const key = makeKey()
+  // Where the desktop app would read unlock notices (spec §5.1)
+  const eventsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'boly-events-'))
   const { child, state } = launchGame({
     gamePath: ctx.gamePath,
     launcher: ctx.launcher,
@@ -405,14 +410,17 @@ async function scenarioAchievements(ctx) {
     key,
     port,
     heartbeat: ctx.heartbeat,
-    extraArgs: ['-boly_test_achievement', TEST_ACHIEVEMENT],
+    extraArgs: ['-boly_test_achievement', TEST_ACHIEVEMENT, '-boly_events_dir', eventsDir],
   })
 
   const isPost = (c) => c.method === 'POST' && c.path === '/v1/lumen/achievements'
   await server.waitForLumen((calls) => calls.filter(isPost).length >= 2, (ctx.intervalSec * 4 + 8) * 1000)
+  // The notice is written right after the confirmed unlock: give it a moment
+  const notices = await waitForNotices(eventsDir, 3000)
   const exitedEarly = state.exited
   killGame(child)
   await server.stop()
+  fs.rmSync(eventsDir, { recursive: true, force: true })
 
   const fatal = fatalIfSpawnError(state, title)
   if (fatal) return fatal
@@ -483,6 +491,20 @@ async function scenarioAchievements(ctx) {
       : check('Kept playing when an achievement report failed', 'pass'),
   )
 
+  // SDK 0.3+: tells the Boly app about the unlock so it can show its notice
+  const sdk = server.beats.find((b) => b.sdk)?.sdk ?? ''
+  const notice = notices.files.map((f) => f.parsed).find((n) => n?.api_name === TEST_ACHIEVEMENT)
+  const name = 'Notifies the Boly app of the unlock (-boly_events_dir)'
+  if (notice && notice.type === 'achievement_unlocked' && notices.tmp === 0) {
+    checks.push(check(name, 'pass', `${notices.files.length} notice(s)`))
+  } else if (notice) {
+    checks.push(check(name, 'fail', notices.tmp ? 'a .tmp file was left behind — write it whole, then rename' : `unexpected notice: ${JSON.stringify(notice)}`))
+  } else if (sdkOlderThan(sdk, '0.3.0')) {
+    checks.push(check(name, 'warn', `${sdk || 'this SDK'} predates the notice — the Boly app won't show its popup (update to Boly SDK 0.3+)`))
+  } else {
+    checks.push(check(name, 'fail', 'no notice file appeared in the -boly_events_dir folder after the unlock'))
+  }
+
   // Names the game reported on its own that its manifest doesn't declare
   if (ctx.manifest?.status === 'ok') {
     const declared = new Set(ctx.manifest.achievements.map((a) => a.api_name))
@@ -524,6 +546,46 @@ async function scenarioManifest(ctx) {
     checks.push(check('Valid manifest', 'fail', 'Boly will not apply these achievements'))
   }
   return result(title, checks, null)
+}
+
+// Notice files (*.json) the game wrote, and how many .tmp files it left
+async function waitForNotices(dir, timeoutMs) {
+  const deadline = Date.now() + timeoutMs
+  const read = () => {
+    let names = []
+    try {
+      names = fs.readdirSync(dir)
+    } catch {
+      // folder gone
+    }
+    const files = names
+      .filter((n) => n.endsWith('.json'))
+      .map((n) => {
+        try {
+          return { name: n, parsed: JSON.parse(fs.readFileSync(path.join(dir, n), 'utf8')) }
+        } catch {
+          return { name: n, parsed: null }
+        }
+      })
+    return { files, tmp: names.filter((n) => n.endsWith('.tmp')).length }
+  }
+  let found = read()
+  while (found.files.length === 0 && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 200))
+    found = read()
+  }
+  return found
+}
+
+// "unity/0.2.0" older than "0.3.0"?
+function sdkOlderThan(sdkHeader, version) {
+  const m = /\/(\d+)\.(\d+)\.(\d+)/.exec(sdkHeader)
+  if (!m) return true
+  const want = version.split('.').map(Number)
+  for (let i = 0; i < 3; i++) {
+    if (Number(m[i + 1]) !== want[i]) return Number(m[i + 1]) < want[i]
+  }
+  return false
 }
 
 const SCENARIOS = [
