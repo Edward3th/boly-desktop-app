@@ -1,4 +1,4 @@
-import { BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, shell } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../../resources/icon.png?asset'
@@ -37,6 +37,14 @@ export class WindowManager {
       }
     })
 
+    // Closing the main window quits Boly: helper windows (the hidden
+    // achievement notice, browser games) must not keep a windowless app alive.
+    const win = this.mainWindow
+    win.on('closed', () => {
+      if (this.mainWindow === win) this.mainWindow = null
+      if (process.platform !== 'darwin') app.quit()
+    })
+
     this.mainWindow.on('ready-to-show', () => {
       this.mainWindow?.webContents.openDevTools()
       this.mainWindow?.show()
@@ -71,7 +79,7 @@ export class WindowManager {
   }
 
   public getMainWindow(): BrowserWindow | null {
-    return this.mainWindow
+    return this.mainWindow && !this.mainWindow.isDestroyed() ? this.mainWindow : null
   }
 
   public send(channel: string, ...args: any[]): void {

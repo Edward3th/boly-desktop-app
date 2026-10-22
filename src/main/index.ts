@@ -33,15 +33,16 @@ if (!gotTheLock) {
     const mainWindow = windowManager.getMainWindow()
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.show()
       mainWindow.focus()
+    } else if (app.isReady()) {
+      windowManager.createWindow()
     }
     const deepLinkUrl = argv.find(
       (arg) => arg.startsWith('boly-app://') || arg.startsWith('boly://')
     )
     if (deepLinkUrl) {
       windowManager.send('deep-link-url', deepLinkUrl)
-    } else {
-      dialog.showErrorBox('Welcome Back', `You arrived from: ${argv[argv.length - 1]}`)
     }
   })
 }
