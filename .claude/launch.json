@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "ffstudios-shop-dev",
+      "runtimeExecutable": "C:\\Users\\eduar\\miniconda3\\envs\\boly-node20\\npm.cmd",
+      "runtimeArgs": ["--prefix", "D:\\Archivo_Proyectos\\Repositorios\\ffstudios-shop", "run", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "ffstudios-shop-api-dev",
+      "runtimeExecutable": "C:\\Windows\\System32\\cmd.exe",
+      "runtimeArgs": ["/c", "set PATH=C:\\Users\\eduar\\miniconda3\\envs\\boly-node20;%PATH%&& set DB_HOST=localhost&& cd /d D:\\Archivo_Proyectos\\Repositorios\\ffstudios-shop-api&& npm run start"],
+      "port": 3000
+    }
+  ]
+}

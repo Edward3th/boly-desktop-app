@@ -30,7 +30,7 @@ signal achievement_unlocked(api_name: String, current: int, target: int)
 ## Llego el estado de los logros desde el servidor, al iniciar la sesion.
 signal achievements_synced
 
-const VERSION := "0.3.0"
+const VERSION := "0.3.1"
 ## Escena que se carga cuando la sesion queda lista ("" = ninguna). Equivale al
 ## flujo AuthScene -> MainGame del ParamsCatcher.
 const SETTING_SCENE_ON_READY := "boly/scene_on_ready"
@@ -86,6 +86,8 @@ var _pending: Array = []       # [{"client_event_id", "api_name", "op", "value"?
 var _pending_file := ""
 var _achievements_session := false
 var _flushing := false
+# true mientras el GET inicial usa _achievements_http (ver _start_achievements).
+var _syncing := false
 var _flush_scheduled := false
 var _achievements_http: HTTPRequest
 var _api_name_re := RegEx.create_from_string("^[A-Z][A-Z0-9_]{0,63}$")
@@ -243,7 +245,12 @@ func _start_achievements() -> void:
 		_load_pending()
 		_save_pending()
 	_achievements_session = true
+	# Un HTTPRequest atiende una peticion a la vez: mientras el GET esta en
+	# vuelo no se envia nada (antes daba "HTTPRequest is processing a request").
+	# Lo que se reporte entretanto queda en la cola y sale en el flush de abajo.
+	_syncing = true
 	await _sync_achievements()
+	_syncing = false
 	await _flush_achievements()
 
 
@@ -289,7 +296,7 @@ func _sync_achievements() -> void:
 
 
 func _flush_achievements() -> void:
-	if _flushing or not _achievements_session:
+	if _flushing or _syncing or not _achievements_session:
 		return
 	_flushing = true
 	while not _pending.is_empty():

@@ -392,7 +392,7 @@ pausa) y sobrevive a `change_scene_to_file()`.
 
 | Miembro | Tipo | Descripción |
 |---|---|---|
-| `Boly.VERSION` | `const String` | `"0.3.0"` |
+| `Boly.VERSION` | `const String` | `"0.3.1"` (los demás motores siguen en 0.3.0) |
 | `Boly.is_ready` | `bool` | Sesión validada (en el editor, en el frame siguiente al arranque). |
 | `Boly.session_ready` | `signal` | Una vez. Si conectas tarde, revisa `is_ready` antes. |
 | `Boly.session_ended(reason: EndReason)` | `signal` | Justo antes de cerrar. |

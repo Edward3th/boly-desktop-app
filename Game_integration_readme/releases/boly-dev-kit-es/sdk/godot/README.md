@@ -1,6 +1,6 @@
 # Boly SDK — Godot 4
 
-Addon `addons/boly_sdk`. Godot 4.x (GDScript).
+Addon `addons/boly_sdk`. Godot 4.x (GDScript). Versión 0.3.1: qué cambió respecto de 0.3.0 en [`CAMBIOS_0.3.1.md`](CAMBIOS_0.3.1.md).
 
 > **Estado:** escrito siguiendo el ParamsCatcher de Godot, pero aún no
 > probado en el motor. Pruébalo con el verifier antes de usarlo en un juego.
