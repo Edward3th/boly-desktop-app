@@ -114,6 +114,8 @@ export class InstallerService {
         }
       })
 
+      // The renderer's library rescan recovers installs by this folder name
+      // (installFolderName in gameRoutes.ts) — keep the two in step.
       const gameNameNoSymbols = gameName.replace(/[^\w\sáéíóúÁÉÍÓÚñÑ]/g, '')
       return new Promise((resolve, reject) => {
         response.data.pipe(writer)
@@ -296,39 +298,14 @@ export class InstallerService {
       }
       fs.renameSync(stagingRoute, destinationRoute)
 
-      const exeFiles = this.searchForExecutablesRecursive(destinationRoute)
-      console.log('Found executable files:', exeFiles)
-
-      const gameExeFiles = exeFiles.filter((filePath) => {
-        const fileName = path.basename(filePath).toLowerCase()
-        return (
-          !fileName.startsWith('unins') &&
-          !fileName.includes('crash') &&
-          !fileName.includes('setup') &&
-          !fileName.includes('install') &&
-          !fileName.includes('update')
-        )
-      })
-
-      const exePath = gameExeFiles[0] ?? exeFiles[0]
-      if (exePath) {
+      const entry = this.resolveBuildEntry(destinationRoute)
+      if (entry) {
+        console.log(`Installed ${entry.kind} build, entry point:`, entry.path)
         WindowManager.getInstance().send('install-complete', {
           gameId: game_id,
-          installPath: exePath,
+          installPath: entry.path,
           installRoot: destinationRoute,
-          kind: 'exe'
-        })
-        return true
-      }
-
-      const entryPoint = this.findEntryPointHtml(destinationRoute)
-      if (entryPoint) {
-        console.log('No executable found — treating build as a browser-style game:', entryPoint.path)
-        WindowManager.getInstance().send('install-complete', {
-          gameId: game_id,
-          installPath: entryPoint.path,
-          installRoot: destinationRoute,
-          kind: 'html'
+          kind: entry.kind
         })
         return true
       }
@@ -358,6 +335,47 @@ export class InstallerService {
       })
       return false
     }
+  }
+
+  // What launching an extracted zip build means: its executable, or failing
+  // that its index.html. Shared by the install itself and the library rescan
+  // so a rediscovered install launches exactly what the original one did.
+  public resolveBuildEntry(root: string): { path: string; kind: 'exe' | 'html' } | null {
+    const exeFiles = this.searchForExecutablesRecursive(root)
+    const gameExeFiles = exeFiles.filter((filePath) => {
+      const fileName = path.basename(filePath).toLowerCase()
+      return (
+        !fileName.startsWith('unins') &&
+        !fileName.includes('crash') &&
+        !fileName.includes('setup') &&
+        !fileName.includes('install') &&
+        !fileName.includes('update')
+      )
+    })
+
+    const exePath = gameExeFiles[0] ?? exeFiles[0]
+    if (exePath) return { path: exePath, kind: 'exe' }
+
+    const entryPoint = this.findEntryPointHtml(root)
+    return entryPoint ? { path: entryPoint.path, kind: 'html' } : null
+  }
+
+  // Every game folder in the library with what launching it means. Lets the
+  // renderer check that a recorded install is still on disk, and recover
+  // installs it has no record of: zip builds can't be matched by executable
+  // name (their file_name.desktop is an S3 key, not an .exe), only by the
+  // folder downloadTempFile named after the game.
+  public listLibraryFolders(): { name: string; root: string; entry: string; kind: 'exe' | 'html' }[] {
+    const libraryPath = this.getLibraryPath()
+    const folders: { name: string; root: string; entry: string; kind: 'exe' | 'html' }[] = []
+    for (const dirent of fs.readdirSync(libraryPath, { withFileTypes: true })) {
+      // .incoming is an extraction still in progress (or one that crashed).
+      if (!dirent.isDirectory() || dirent.name.endsWith('.incoming')) continue
+      const root = path.join(libraryPath, dirent.name)
+      const entry = this.resolveBuildEntry(root)
+      if (entry) folders.push({ name: dirent.name, root, entry: entry.path, kind: entry.kind })
+    }
+    return folders
   }
 
   // The index.html a browser-style build starts from. Engines nest their export

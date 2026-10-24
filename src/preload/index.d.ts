@@ -12,6 +12,10 @@ interface ElectronAPIExtended {
   }) => Promise<{ success: boolean; message?: string; error?: string }>
   isGameRunning: (gameId: number) => Promise<boolean>
   searchExeFiles: (baseDir?: string) => Promise<{ files?: string[]; error?: string }>
+  listLibraryFolders: () => Promise<{
+    folders?: { name: string; root: string; entry: string; kind: 'exe' | 'html' }[]
+    error?: string
+  }>
   windowMinimize: () => Promise<void>
   windowMaximizeToggle: () => Promise<boolean>
   windowClose: () => Promise<void>

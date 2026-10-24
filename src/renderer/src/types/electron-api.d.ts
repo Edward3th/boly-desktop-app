@@ -38,6 +38,14 @@ interface ElectronAPIExtended {
   windowIsMaximized: () => Promise<boolean>
   onWindowMaximized: (callback: (isMaximized: boolean) => void) => void
   searchExeFiles: (baseDir?: string) => Promise<{ files?: string[]; error?: string }>
+  /**
+   * Each game folder in the library with what launching it means (its .exe,
+   * or its index.html) — how the library tells which installs are on disk.
+   */
+  listLibraryFolders: () => Promise<{
+    folders?: { name: string; root: string; entry: string; kind: 'exe' | 'html' }[]
+    error?: string
+  }>
   updateMessage: (callback: (message: string) => void) => void
   onUpdateProgress: (
     callback: (data: {

@@ -41,6 +41,24 @@ export interface LocalUninstaller {
   route: string
 }
 
+// Recorded at install-complete with the game id in hand, as opposed to
+// rebuilt by matching an .exe name. Every install that sends installRoot
+// qualifies; html entries always did.
+const isRecordedInstall = (game: LocalGame) => Boolean(game.root) || game.kind === 'html'
+
+// The folder InstallerService.downloadTempFile extracts a game into, named
+// after the game in whatever language the app was in at the time — keep the
+// two in step.
+const installFolderName = (gameName: string) => gameName.replace(/[^\w\sáéíóúÁÉÍÓÚñÑ]/g, '')
+
+const normalizePath = (p: string) => p.replace(/[\\/]+$/, '').toLowerCase()
+const samePath = (a: string, b: string) => normalizePath(a) === normalizePath(b)
+const isInside = (file: string, dir: string) => {
+  const f = normalizePath(file)
+  const d = normalizePath(dir)
+  return f.startsWith(d) && (f[d.length] === '\\' || f[d.length] === '/')
+}
+
 const useGameRoutes = defineStore('gameRoutes', {
   state: (): LocalGameList => ({
     localGames: JSON.parse(localStorage.getItem('localGames') || '[]'),
@@ -101,18 +119,22 @@ const useGameRoutes = defineStore('gameRoutes', {
     },
 
     // Drop what a disk rescan can rediscover, and keep what it cannot.
-    // searchForExes() rebuilds the exe entries right after this runs; html
-    // builds have no equivalent scan, so wiping them here would make an
-    // installed game look uninstalled on the next library refresh.
+    // searchForExes() rebuilds the exe-name matches right after this runs,
+    // but that only works for legacy installers, whose file_name.desktop IS
+    // the .exe name. A zip build's is an S3 key (builds/<game>/<build>/x.zip),
+    // so dropping its recorded entry here made every installed zip build look
+    // uninstalled the next time the library loaded — after a restart, the
+    // player had to download it again. Whether recorded installs are still on
+    // disk is checked by syncWithLibraryFolders() instead.
     clearRoute() {
-      // Stash the build each exe install came from before dropping it, so the
-      // rescan can put it back — see rediscoverableBuildKeys.
+      // Stash the build each dropped install came from, so the rescan can put
+      // it back — see rediscoverableBuildKeys.
       for (const game of this.localGames) {
-        if (game.kind !== 'html' && game.buildKey) {
+        if (!isRecordedInstall(game) && game.buildKey) {
           this.rediscoverableBuildKeys[game.gameId] = game.buildKey
         }
       }
-      this.localGames = this.localGames.filter((g) => g.kind === 'html')
+      this.localGames = this.localGames.filter(isRecordedInstall)
       this.localUninstallers = []
       this.saveToLocalStorage()
     },
@@ -150,17 +172,63 @@ const useGameRoutes = defineStore('gameRoutes', {
               this.addUninstallerToRoute(uninstaller)
             }
           }
-          return this.localGames
         } else if (result && result.error) {
           console.error('Error searching for exe files:', result.error)
-          return []
         }
 
+        await this.syncWithLibraryFolders()
         return this.localGames
       } catch (error) {
         console.error('Error in searchForExes:', error)
         return this.localGames
       }
+    },
+
+    // Reconcile recorded installs with the library folder on disk: forget the
+    // ones whose folder is gone (deleted by hand, say), and recover installs
+    // there's no record of by the folder downloadTempFile named after the
+    // game. The latter covers zip builds installed while clearRoute() still
+    // dropped them, so those come back without another download; they carry
+    // no buildKey, so they don't claim an update either way.
+    async syncWithLibraryFolders() {
+      const result = await window.electronAPI.listLibraryFolders()
+      if (!result.folders) {
+        // Without a listing there's no telling what's gone — keep everything.
+        console.error('Error listing library folders:', result.error)
+        return
+      }
+      const folders = result.folders
+
+      this.localGames = this.localGames.filter(
+        (game) => !game.root || folders.some((folder) => samePath(folder.root, game.root!))
+      )
+
+      const gamesStore = useGames()
+      if (gamesStore.games.length === 0) {
+        await gamesStore.getAll()
+      }
+
+      for (const folder of folders) {
+        const claimed = this.localGames.some((game) =>
+          game.root ? samePath(game.root, folder.root) : isInside(game.route, folder.root)
+        )
+        if (claimed) continue
+
+        const game = gamesStore.games.find((g) =>
+          Object.values(g.name ?? {}).some((name) => name && installFolderName(name) === folder.name)
+        )
+        if (!game || this.localGames.some((g) => g.gameId === game.game_id)) continue
+
+        console.log('Recovered install from its folder:', folder.root, '-> game', game.game_id)
+        this.localGames.push({
+          gameId: game.game_id,
+          route: folder.entry,
+          kind: folder.kind,
+          root: folder.root
+        })
+      }
+
+      this.saveToLocalStorage()
     }
   }
 })

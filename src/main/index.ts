@@ -145,6 +145,15 @@ function registerIpcHandlers() {
     }
   })
 
+  ipcMain.handle('list-library-folders', async () => {
+    try {
+      return { folders: installerService.listLibraryFolders() }
+    } catch (error) {
+      console.error('Error listing library folders:', error)
+      return { error: (error as Error).message }
+    }
+  })
+
   ipcMain.handle('seleccionar-archivo', async () => {
     try {
       const result = await dialog.showOpenDialog({ properties: ['openFile'] })

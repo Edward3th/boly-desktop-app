@@ -35,6 +35,7 @@ if (process.contextIsolated) {
         ipcRenderer.on('window-unmaximized', () => callback(false))
       },
       searchExeFiles: (baseDir) => ipcRenderer.invoke('search-exe-files', baseDir),
+      listLibraryFolders: () => ipcRenderer.invoke('list-library-folders'),
       apiRequest: (options) => ipcRenderer.invoke('api-request', options),
       checkUpdates: () => ipcRenderer.invoke('check-updates'),
       getVersion: () => ipcRenderer.invoke('get-version'),
@@ -121,6 +122,7 @@ if (process.contextIsolated) {
       ipcRenderer.on('window-unmaximized', () => callback(false))
     },
     searchExeFiles: (baseDir) => ipcRenderer.invoke('search-exe-files', baseDir),
+    listLibraryFolders: () => ipcRenderer.invoke('list-library-folders'),
     apiRequest: (options) => ipcRenderer.invoke('api-request', options),
     checkUpdates: () => ipcRenderer.invoke('check-updates'),
     getVersion: () => ipcRenderer.invoke('get-version'), // Added proper method to get version
