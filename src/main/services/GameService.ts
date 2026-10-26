@@ -1,4 +1,4 @@
-import { spawn, exec } from 'child_process'
+import { spawn, execFile } from 'child_process'
 import { BrowserWindow } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import axios from 'axios'
@@ -32,6 +32,7 @@ export default class GameService {
   private static instance: GameService
   private activeGameSession: ActiveGameSession | null = null
   private activeLocalGameSession: ActiveLocalGameSession | null = null
+  private endingGameSession: Promise<void> | null = null
   private gameSessionLaunching = false
   private PLAYTIME_UPDATE_INTERVAL_MS = 60 * 1000 // every 1 minute
 
@@ -54,7 +55,8 @@ export default class GameService {
   }
 
   public hasActiveSession(): boolean {
-    return this.activeGameSession !== null || this.activeLocalGameSession !== null
+    return this.activeGameSession !== null || this.activeLocalGameSession !== null ||
+      this.endingGameSession !== null
   }
 
   public async fetchInitialPlayTime(token: string, game_id: number): Promise<number> {
@@ -123,55 +125,90 @@ export default class GameService {
     console.log('Playtime tracking stopped.')
   }
 
-  public async cleanupActiveGameSession(): Promise<void> {
-    if (this.activeGameSession) {
-      console.log(`Terminating active game session with PID: ${this.activeGameSession.pid}`)
+  private isGameProcessRunning(pid: number): boolean {
+    try {
+      process.kill(pid, 0)
+      return true
+    } catch {
+      return false
+    }
+  }
 
+  private async waitForGameExit(pid: number, timeoutMs: number): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs
+    while (this.isGameProcessRunning(pid) && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 100))
+    }
+    return !this.isGameProcessRunning(pid)
+  }
+
+  private runTaskkill(pid: number, force: boolean): Promise<void> {
+    return new Promise((resolve) => {
+      const args = ['/pid', String(pid)]
+      // /t without /f fails for Unity's crash-handler child process, so the
+      // graceful request targets the game window alone.
+      if (force) args.push('/f', '/t')
+      execFile('taskkill', args, { windowsHide: true }, (error) => {
+        if (error && this.isGameProcessRunning(pid)) {
+          console.error(`Error closing game process (force=${force}):`, error)
+        }
+        resolve()
+      })
+    })
+  }
+
+  public cleanupActiveGameSession(): Promise<void> {
+    if (this.endingGameSession) return this.endingGameSession
+    const session = this.activeGameSession
+    if (!session) return Promise.resolve()
+
+    this.endingGameSession = (async () => {
+      console.log(`Terminating active game session with PID: ${session.pid}`)
       try {
-        const endTime = Date.now()
-        const sessionDurationMinutes =
-          (endTime - this.activeGameSession.sessionStartTime) / (1000 * 60)
-        const finalTotalPlayTimeMinutes =
-          this.activeGameSession.lastRecordedPlayTimeMinutes + sessionDurationMinutes
-
+        const sessionDurationMinutes = (Date.now() - session.sessionStartTime) / (1000 * 60)
         await this.sendPlayTimeUpdate(
-          this.activeGameSession.token,
-          this.activeGameSession.game_id,
-          finalTotalPlayTimeMinutes
+          session.token,
+          session.game_id,
+          session.lastRecordedPlayTimeMinutes + sessionDurationMinutes
         )
 
-        const gamePid = this.activeGameSession.pid
-
-        if (process.platform === 'win32') {
-          exec(`taskkill /pid ${gamePid} /f /t`, (err) => {
-            if (err) console.error('Error killing game process:', err)
-          })
-        } else {
-          try {
-            process.kill(gamePid, 'SIGTERM')
-            setTimeout(() => {
-              try {
-                process.kill(gamePid, 'SIGKILL')
-              } catch {
-                // Ignore if already dead
-              }
-            }, 3000)
-          } catch {
-            console.log('Game process already terminated or not found')
+        if (this.isGameProcessRunning(session.pid)) {
+          if (process.platform === 'win32') {
+            // Let the game run its normal quit handlers and write its save.
+            // A stuck game is still closed before another account can play.
+            await this.runTaskkill(session.pid, false)
+            if (!(await this.waitForGameExit(session.pid, 3000))) {
+              await this.runTaskkill(session.pid, true)
+              await this.waitForGameExit(session.pid, 1000)
+            }
+          } else {
+            process.kill(session.pid, 'SIGTERM')
+            if (!(await this.waitForGameExit(session.pid, 3000))) {
+              process.kill(session.pid, 'SIGKILL')
+              await this.waitForGameExit(session.pid, 1000)
+            }
           }
         }
-        this.stopPlaytimeTracking()
       } catch (error) {
         console.error('Error during game session cleanup:', error)
-        this.stopPlaytimeTracking()
+      } finally {
+        if (!this.isGameProcessRunning(session.pid) && this.activeGameSession?.pid === session.pid) {
+          this.stopPlaytimeTracking()
+        }
       }
-    }
+      if (this.isGameProcessRunning(session.pid)) {
+        throw new Error(`Game process ${session.pid} is still running after the close request`)
+      }
+    })().finally(() => {
+      this.endingGameSession = null
+    })
+    return this.endingGameSession
   }
 
   public async playGame(appData: any): Promise<any> {
     const { appPath, game_id, token } = appData
 
-    if (this.activeGameSession) {
+    if (this.activeGameSession || this.endingGameSession) {
       console.warn('[GameService] Another game session is already active. Please stop it first.')
       return { error: 'Another game session is active.' }
     }

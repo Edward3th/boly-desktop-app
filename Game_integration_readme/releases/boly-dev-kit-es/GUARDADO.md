@@ -4,7 +4,9 @@ En un PC compartido, varios alumnos de Boly pueden usar la misma cuenta de
 Windows. Si el juego guarda en la ruta normal del motor, comparten partida.
 **Carga después de `OnReady` y guarda todos los datos del jugador en la ruta
 del SDK.** El guardado al cerrar sigue usando `OnSessionEnded` y el cierre
-normal del juego.
+normal del juego (`OnApplicationQuit` en Unity, `_exit_tree` en Godot,
+`EndPlay` en Unreal o Game End en GameMaker). La app solicita un cierre normal
+al cerrar sesión y fuerza la salida si el juego no responde.
 
 | Motor | Ruta para un archivo |
 |---|---|

@@ -773,6 +773,8 @@ void Awake()
     if (BolySDK.IsReady) Empezar(); else BolySDK.OnReady += Empezar;
     BolySDK.OnSessionEnded += _ => Guardar();
 }
+
+void OnApplicationQuit() => Guardar();
 ```
 
 Si el juego usa `PlayerPrefs`, reemplaza **todas** las llamadas por

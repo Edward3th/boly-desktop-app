@@ -134,6 +134,9 @@ guarde cuando termine (el SDK cierra el juego justo después):
 | GameMaker | `boly_on_ready(function() { ... })` | `boly_on_session_ended(function(_r) { ... })` |
 
 - Si el juego no tiene progreso que guardar, no hace falta `OnSessionEnded`.
+- Si guarda progreso, maneja también el cierre normal del motor:
+  `OnApplicationQuit` (Unity), `_exit_tree` (Godot), `EndPlay` (Unreal) o
+  Game End (GameMaker).
 - Las cargas largas deben ser **asíncronas** (`LoadSceneAsync`, etc.): una carga
   que bloquea el hilo principal muchos segundos detiene el heartbeat.
 - Unity: no devuelvas `false` en `Application.wantsToQuit`; eso impide que el SDK cierre el juego.
