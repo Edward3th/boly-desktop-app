@@ -126,12 +126,14 @@ const getCardIcon = (cardType: string): string => {
   return '💳 ' + cardType
 }
 
+// Plans and payment methods are managed on boly.cl; the app has no purchase
+// pages for signed-in users.
 const goToChangeSubscription = () => {
-  router.push('/subscription')
+  window.open('https://boly.cl/subscription', '_blank')
 }
 
 const goToPaymentMethods = () => {
-  router.push('/payment-methods')
+  window.open('https://boly.cl/payment-methods', '_blank')
 }
 
 const cancelSubscription = async () => {

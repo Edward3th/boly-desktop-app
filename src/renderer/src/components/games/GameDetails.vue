@@ -4,11 +4,9 @@ import { useRouter } from 'vue-router'
 import WindowsIcon from '@/components/icons/WindowsIcon.vue'
 import AppleIcon from '@/components/icons/AppleIcon.vue'
 import StarIcon from '../icons/SolidStarIcon.vue'
-import HeartIcon from '../icons/HeartIcon.vue'
 import CustomGameMediaGallery from './CustomGameMediaGallery.vue'
 import GameEducationPanel from '@/components/education/GameEducationPanel.vue'
-import { useAuth, useUser, useGames, useCart, useDeveloper, useCurriculum } from '@/stores'
-import useWishlist from '@/stores/wishlist'
+import { useAuth, useUser, useGames, useDeveloper, useCurriculum } from '@/stores'
 import { useI18n } from 'vue-i18n'
 import type { Game, GameEducation, LocalizedString } from '@/types'
 import { resolveImageUrl } from '@/utils/imageUrl'
@@ -32,17 +30,11 @@ console.log('GameDetails props:', props);
 const i18n = useI18n();
 const auth = useAuth();
 const user = useUser();
-const cart = useCart();
 const router = useRouter();
 const games = useGames();
-const wishlist = useWishlist();
 
 const developer = ref<any>(null);
 const developerStore = useDeveloper();
-
-const currency = computed(() => {
-  return i18n.locale.value === 'en' ? 'USD' : 'CLP';
-});
 
 const game_images = ref<GameMedia[]>([]);
 
@@ -52,10 +44,6 @@ function GoToAchievements(): void {
 
 function goToLibrary(): void {
   router.push('/library');
-}
-
-function goToGames(): void {
-  router.push('/games');
 }
 
 function updateGameImages(): void {
@@ -79,13 +67,7 @@ function updateGameImages(): void {
   }
 }
 
-function AddToCart(): void {
-  cart.addGameToCart({ game_id: props.item.game_id });
-}
-
 const ownsCurrentGame = ref(false);
-const hasSubscriptionAccess = ref(false);
-const isInWishlist = ref(false);
 
 async function fetchDeveloperDetails(developerId: number): Promise<void> {
   if (!developerId) return;
@@ -95,31 +77,6 @@ async function fetchDeveloperDetails(developerId: number): Promise<void> {
     console.log('Developer details:', developer.value);
   } catch (error) {
     console.error('Error fetching developer details:', error);
-  }
-}
-
-function toggleWishlist(): void {
-  if (!auth.isLoggedIn) {
-    router.push('/login');
-    return;
-  }
-
-  if (isInWishlist.value) {
-    wishlist.removeFromWishlist(props.item.game_id.toString())
-      .then(() => {
-        isInWishlist.value = false;
-      })
-      .catch(error => {
-        console.error("Failed to remove from wishlist:", error);
-      });
-  } else {
-    wishlist.addToWishlist(props.item.game_id.toString())
-      .then(() => {
-        isInWishlist.value = true;
-      })
-      .catch(error => {
-        console.error("Failed to add to wishlist:", error);
-      });
   }
 }
 
@@ -172,8 +129,6 @@ onMounted(async () => {
       if (!isNaN(userId) && !isNaN(gameId)) {
         const accessInfo = await games.ownsGame(gameId, userId);
         ownsCurrentGame.value = accessInfo.owned;
-        hasSubscriptionAccess.value = accessInfo.subscriptionAccess;
-        isInWishlist.value = wishlist.isInWishlist(props.item.game_id.toString());
       }
     }
   }
@@ -197,8 +152,6 @@ watch(
         if (!isNaN(userId) && !isNaN(gameId)) {
           const accessInfo = await games.ownsGame(gameId, userId);
           ownsCurrentGame.value = accessInfo.owned;
-          hasSubscriptionAccess.value = accessInfo.subscriptionAccess;
-          isInWishlist.value = wishlist.isInWishlist(newItem.game_id.toString());
         }
       }
     }
@@ -260,23 +213,14 @@ function getGameName() {
             </table>
           </div>
 
+          <!-- The app is for subscribers: every game comes with the
+               subscription, so there is no price, cart or wishlist here. -->
           <div class="price">
-            <template v-if="ownsCurrentGame">
-              <p>{{ $t('already_owned') }}</p>
-            </template>
-            <template v-else-if="hasSubscriptionAccess">
-              <p>{{ $t('subscription_access') }}</p>
-            </template>
-            <template v-else>
-              <p v-if="(props.item.price as Record<string, number>)[i18n.locale.value] > 0">
-                {{ currency }} {{ Intl.NumberFormat(i18n.locale.value === 'en' ? 'en-US' : 'es-CL', { style: 'currency', currency: currency, currencyDisplay: 'symbol' }).format((props.item.price as Record<string, number>)[i18n.locale.value]) }}
-              </p>
-              <p v-else>{{ $t('claim_for_free') }}</p>
-            </template>
+            <p>{{ ownsCurrentGame ? $t('already_owned') : $t('subscription_access') }}</p>
           </div>
 
           <div class="buttons">
-            <div v-if="ownsCurrentGame || hasSubscriptionAccess">
+            <div>
               <button class="btn-purple" type="button" @click="goToLibrary" @click.stop>
                 {{ $t('view_in_library').toUpperCase() }}
               </button>
@@ -285,28 +229,6 @@ function getGameName() {
                 {{ $t('see_achievements').toUpperCase() }} <StarIcon/>
               </button>
             </div>
-            <div v-else>
-              <button
-                v-if="cart.cart.includes(props.item.game_id)"
-                class="btn-blue"
-                @click="router.push('/cart')"
-              >
-                {{ $t('view_in_cart').toUpperCase() }}
-              </button>
-              <button v-else class="btn-purple" @click="AddToCart">
-                {{ $t('add_to_cart').toUpperCase() }}
-              </button>
-
-              <button
-                :class="['btn-wishlist', isInWishlist ? 'in-wishlist' : '']"
-                @click="toggleWishlist()"
-              >
-                {{ isInWishlist ? $t('remove from wishlist').toUpperCase() : $t('add to wishlist').toUpperCase() }}
-                <HeartIcon :class="{ 'filled': isInWishlist }" />
-              </button>
-            </div>
-
-            <button class="btn-dark" @click="goToGames()">{{ $t('continue_shopping').toUpperCase() }}</button>
           </div>
         </div>
       </div>
@@ -590,46 +512,11 @@ button svg{
   background-color: var(--boly-button-purple-hover);
 }
 
-.btn-dark{
-  background-color: var(--boly-bg-dark-transparent);
-}
-
-.btn-dark:hover{
-  background-color: var(--boly-bg-blue);
-}
-
 .btn-blue{
   background-color: var(--boly-button-blue);
 }
 
 .btn-blue:hover{
   background-color: var(--boly-button-blue-hover);
-}
-
-.btn-wishlist {
-  background-color: var(--boly-bg-dark-transparent);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.btn-wishlist:hover {
-  background-color: rgba(255, 80, 80, 0.7);
-}
-
-.btn-wishlist.in-wishlist {
-  background-color: rgba(255, 80, 80, 0.8);
-}
-
-.btn-wishlist.in-wishlist:hover {
-  background-color: rgba(255, 80, 80, 0.6);
-}
-
-.btn-wishlist svg {
-  transition: fill 0.3s ease;
-}
-
-.btn-wishlist svg.filled {
-  fill: red;
 }
 </style>

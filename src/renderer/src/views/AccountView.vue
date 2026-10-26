@@ -5,14 +5,9 @@ import { RouterLink, useRouter } from 'vue-router'
 import DiagonalPencilIcon from '@/components/icons/DiagonalPencilIcon.vue'
 import DoorIcon from '@/components/icons/DoorIcon.vue'
 import KingIcon from '@/components/icons/ManageIcon.vue'
-import BolyIcon from '@/components/icons/FlowerIcon.vue'
-import CreditCardIcon from '@/components/icons/CreditCardIcon.vue'
-import IconDocumentation from '@/components/icons/IconDocumentation.vue'
 import RightArrowIcon from '@/components/icons/RightArrowIcon.vue'
 import TrophyIcon from '@/components/icons/TrophyIcon.vue'
-import WishlistIcon from '@/components/icons/WishlistIcon.vue'
 import GameStatsIcon from '@/components/icons/GameStatsIcon.vue'
-import PercentageIcon from '@/components/icons/PercentageIcon.vue'
 import HelpIcon from '@/components/icons/HelpIcon.vue'
 import { onMounted, ref } from 'vue'
 import axios from 'axios'
@@ -176,53 +171,12 @@ const sendVerification = async () => {
               <RightArrowIcon class="button-icon arrow-icon" />
             </div>
           </RouterLink>
-          <RouterLink to="/subscription" class="button btn-blue">
-            <div class="button-content">
-              <BolyIcon class="button-icon" />
-              <span>{{ $t('available_subscriptions') }}</span>
-              <RightArrowIcon class="button-icon arrow-icon" />
-            </div>
-          </RouterLink>
-        </div>
-      </div>
-
-      <div class="mobile-section">
-        <h2 class="mobile-section-title">{{ $t('payment_title') }}</h2>
-        <div class="mobile-button-stack">
-          <a href="https://boly.cl/payment-methods" target="_blank" class="button btn-pink">
-            <div class="button-content">
-              <CreditCardIcon class="button-icon" />
-              <span>{{ $t('my_cards') }}</span>
-              <RightArrowIcon class="button-icon arrow-icon" />
-            </div>
-          </a>
-          <RouterLink to="/orders" class="button btn-blue">
-            <div class="button-content">
-              <IconDocumentation class="button-icon" />
-              <span>{{ $t('order_history') }}</span>
-              <RightArrowIcon class="button-icon arrow-icon" />
-            </div>
-          </RouterLink>
-          <RouterLink to="/my-discount-codes" class="button btn-pink">
-            <div class="button-content">
-              <PercentageIcon class="button-icon" />
-              <span>{{ $t('my_discount_codes') }}</span>
-              <RightArrowIcon class="button-icon arrow-icon" />
-            </div>
-          </RouterLink>
         </div>
       </div>
 
       <div class="mobile-section">
         <h2 class="mobile-section-title">{{ $t('games_title') }}</h2>
         <div class="mobile-button-stack">
-          <RouterLink to="/wishlist" class="button btn-pink">
-            <div class="button-content">
-              <WishlistIcon class="button-icon" />
-              <span>{{ $t('wishlist') }}</span>
-              <RightArrowIcon class="button-icon arrow-icon" />
-            </div>
-          </RouterLink>
           <RouterLink to="/player-stats" class="button btn-blue">
             <div class="button-content">
               <GameStatsIcon class="button-icon" />
@@ -339,53 +293,12 @@ const sendVerification = async () => {
                     <RightArrowIcon class="button-icon arrow-icon" />
                   </div>
                 </RouterLink>
-                <RouterLink to="/subscription" class="button btn-blue">
-                  <div class="button-content">
-                    <BolyIcon class="button-icon" />
-                    <span>{{ $t('available_subscriptions') }}</span>
-                    <RightArrowIcon class="button-icon arrow-icon" />
-                  </div>
-                </RouterLink>
-              </div>
-            </div>
-
-            <div class="account-section">
-              <h2 class="section-title">{{ $t('payment_title') }}</h2>
-              <div class="button-stack">
-                <a href="https://boly.cl/payment-methods" target="_blank" class="button btn-pink">
-                  <div class="button-content">
-                    <CreditCardIcon class="button-icon" />
-                    <span>{{ $t('my_cards') }}</span>
-                    <RightArrowIcon class="button-icon arrow-icon" />
-                  </div>
-                </a>
-                <RouterLink to="/orders" class="button btn-blue">
-                  <div class="button-content">
-                    <IconDocumentation class="button-icon" />
-                    <span>{{ $t('order_history') }}</span>
-                    <RightArrowIcon class="button-icon arrow-icon" />
-                  </div>
-                </RouterLink>
-                <RouterLink to="/my-discount-codes" class="button btn-pink">
-                  <div class="button-content">
-                    <PercentageIcon class="button-icon" />
-                    <span>{{ $t('my_discount_codes') }}</span>
-                    <RightArrowIcon class="button-icon arrow-icon" />
-                  </div>
-                </RouterLink>
               </div>
             </div>
 
             <div class="account-section">
               <h2 class="section-title">{{ $t('games_title') }}</h2>
               <div class="button-stack">
-                <RouterLink to="/wishlist" class="button btn-pink">
-                  <div class="button-content">
-                    <WishlistIcon class="button-icon" />
-                    <span>{{ $t('wishlist') }}</span>
-                    <RightArrowIcon class="button-icon arrow-icon" />
-                  </div>
-                </RouterLink>
                 <RouterLink to="/player-stats" class="button btn-blue">
                   <div class="button-content">
                     <GameStatsIcon class="button-icon" />

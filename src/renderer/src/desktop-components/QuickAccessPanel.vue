@@ -141,12 +141,18 @@ function goToLibrary() {
   router.push('/library')
 }
 
-function goToStore() {
-  router.push('/games')
+// Subscribing and renewing happen on boly.cl: the app has no purchase pages
+// for signed-in users.
+function openSubscriptionSite() {
+  window.open('https://boly.cl/subscription', '_blank')
 }
 
 function goToSubscription() {
-  router.push(hasSubscription.value ? '/subscription-management' : '/subscription')
+  if (hasSubscription.value) {
+    router.push('/subscription-management')
+  } else {
+    openSubscriptionSite()
+  }
 }
 
 function goToLogin() {
@@ -289,11 +295,11 @@ onMounted(async () => {
           </button>
         </div>
 
-        <!-- Nothing owned: a zeroed stat row is noise, point at the store -->
+        <!-- Nothing owned: a zeroed stat row is noise, point at the subscription -->
         <template v-if="isLibraryEmpty">
           <p class="panel-note">{{ $t('home_quick_library_none') }}</p>
-          <button class="library-browse" type="button" @click="goToStore">
-            {{ $t('home_quick_browse') }}
+          <button class="library-browse" type="button" @click="openSubscriptionSite">
+            {{ $t('library_renew_on_boly') }}
             <RightArrowIcon />
           </button>
         </template>

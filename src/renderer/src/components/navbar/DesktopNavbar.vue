@@ -1,10 +1,8 @@
 <script setup lang="ts">
 import TheLogo from '../logo/TheLogo.vue'
 import TheMainLogo from '../logo/TheMainLogo.vue'
-import CartIcon from '../icons/CartIcon.vue'
-import { computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { useAuth, useUser, useCart } from '@/stores'
+import { useAuth, useUser } from '@/stores'
 
 const props = defineProps({
   color: {
@@ -23,15 +21,6 @@ const router = useRouter()
 const route = useRoute()
 const auth = useAuth()
 const user = useUser()
-const cartStore = useCart()
-
-const cartLength = computed(() => cartStore.cart.length)
-
-function GoToCart() {
-  if (cartStore.cart.length > 0) {
-    router.push('/cart')
-  }
-}
 
 function GoToHome() {
   router.push('/')
@@ -54,48 +43,45 @@ function isActive(path: string) {
         <RouterLink :class="{ active: isActive('/') }" to="/">
           <p>{{ $t('home') }}</p>
         </RouterLink>
-        <RouterLink :class="{ active: isActive('/games') }" to="/games">
+        <!-- Signed-in users are subscribers: every game is already theirs, so
+             the library is the games page and there is nothing to buy. -->
+        <RouterLink v-if="auth.isLoggedIn" :class="{ active: isActive('/library') }" to="/library">
           <p>{{ $t('games') }}</p>
         </RouterLink>
-        <div class="dropdown-container">
-          <button class="dropdown-button" :class="{ active: isActive('/contact') }">
-            <p>{{ $t('contact') }}</p>
-          </button>
-          <div class="dropdown-menu">
-            <a
-              href="https://boly.cl/developer-contact"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="dropdown-item"
-            >
-              <p>{{ $t('developer_contact') }}</p>
-            </a>
-            <a
-              href="https://boly.cl/educators"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="dropdown-item"
-            >
-              <p>{{ $t('educators') }}</p>
-            </a>
-            <RouterLink to="/contact" class="dropdown-item">
-              <p>{{ $t('support') }}</p>
-            </RouterLink>
+        <template v-else>
+          <RouterLink :class="{ active: isActive('/games') }" to="/games">
+            <p>{{ $t('games') }}</p>
+          </RouterLink>
+          <div class="dropdown-container">
+            <button class="dropdown-button" :class="{ active: isActive('/contact') }">
+              <p>{{ $t('contact') }}</p>
+            </button>
+            <div class="dropdown-menu">
+              <a
+                href="https://boly.cl/developer-contact"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="dropdown-item"
+              >
+                <p>{{ $t('developer_contact') }}</p>
+              </a>
+              <a
+                href="https://boly.cl/educators"
+                target="_blank"
+                rel="noopener noreferrer"
+                class="dropdown-item"
+              >
+                <p>{{ $t('educators') }}</p>
+              </a>
+              <RouterLink to="/contact" class="dropdown-item">
+                <p>{{ $t('support') }}</p>
+              </RouterLink>
+            </div>
           </div>
-        </div>
-        <RouterLink :class="{ active: isActive('/subscription') }" to="/subscription">
-          <p>{{ $t('subscription') }}</p>
-        </RouterLink>
-
-        <!-- Authenticated User Links -->
-        <RouterLink v-if="auth.isLoggedIn" :class="{ active: isActive('/library') }" to="/library">
-          <p>{{ $t('my_library') }}</p>
-        </RouterLink>
-        <!-- <RouterLink :class="{ active: isActive('/wishlist') }"
-                   to="/wishlist"
-                   v-if="auth.isLoggedIn">
-          <p>{{ $t('wishlist') }}</p>
-        </RouterLink> -->
+          <RouterLink :class="{ active: isActive('/subscription') }" to="/subscription">
+            <p>{{ $t('subscription') }}</p>
+          </RouterLink>
+        </template>
       </div>
 
       <div class="user-navigation">
@@ -112,7 +98,7 @@ function isActive(path: string) {
           <p>{{ $t('sign_up') }}</p>
         </a>
 
-        <!-- User Profile & Cart -->
+        <!-- User Profile -->
         <RouterLink v-if="auth.isLoggedIn" to="/account" class="user-profile-link">
           <img
             :src="
@@ -124,10 +110,6 @@ function isActive(path: string) {
           />
           <p>{{ user.username }}</p>
         </RouterLink>
-        <a class="cart-button" :class="{ 'cart-disabled': cartLength === 0 }" @click="GoToCart()">
-          <p>{{ cartLength }}</p>
-          <CartIcon class="icon cart_icon"></CartIcon>
-        </a>
       </div>
     </nav>
   </header>
@@ -321,33 +303,6 @@ nav {
   background-color: #849433;
 }
 
-/* Cart Button Styles
--------------------------------------------- */
-.cart-button {
-  margin-left: 10px;
-  cursor: pointer;
-  font-weight: bold;
-  font-size: 16px;
-  background-color: #3399ff;
-  color: white !important;
-  height: 35px;
-  padding: 5px 10px;
-  transform: skew(-20deg);
-  border-radius: 5px;
-  display: flex;
-  align-items: center;
-}
-
-.cart-button > * {
-  transform: skew(20deg);
-  display: inline-block;
-}
-
-.cart-disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
 /* Icon Styles
 -------------------------------------------- */
 .icon {
@@ -355,12 +310,6 @@ nav {
   width: 25px;
   fill: var(--light);
   transition-duration: 0.2s;
-}
-
-.cart_icon {
-  margin-left: 5px;
-  height: 20px;
-  width: 20px;
 }
 
 .user_icon {

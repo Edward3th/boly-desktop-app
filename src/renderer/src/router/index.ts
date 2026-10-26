@@ -270,6 +270,20 @@ export const router = createRouter({
 
 const DEV_SKIP_AUTH = import.meta.env.DEV && import.meta.env.VITE_DEV_SKIP_AUTH === 'true'
 
+// Signed-in users are subscribers with the whole catalogue, so the store, the
+// cart and the purchase pages have nothing for them: a stray link into one of
+// them lands on the games library instead. Payments live on boly.cl.
+const STORE_ONLY_PATHS = new Set([
+  '/games',
+  '/cart',
+  '/subscription',
+  '/payment',
+  '/wishlist',
+  '/orders',
+  '/payment-methods',
+  '/my-discount-codes'
+])
+
 //@ts-ignore
 router.beforeEach(async (to, from, next) => {
   if (DEV_SKIP_AUTH) {
@@ -281,6 +295,11 @@ router.beforeEach(async (to, from, next) => {
 
   try {
     await auth.checkToken()
+
+    if (auth.isLoggedIn && STORE_ONLY_PATHS.has(to.path)) {
+      next('/library')
+      return
+    }
 
     // If user is not logged in and accessing home route, redirect to login
     if (to.path === '/' && !auth.isLoggedIn) {

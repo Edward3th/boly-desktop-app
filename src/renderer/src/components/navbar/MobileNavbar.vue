@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import TheLogo from '../logo/TheLogo.vue'
 import TheMainLogo from '../logo/TheMainLogo.vue'
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { useAuth, useUser, useCart } from '@/stores'
+import { useAuth, useUser } from '@/stores'
 
 const props = defineProps({
   color: {
@@ -22,16 +22,8 @@ const router = useRouter()
 const route = useRoute()
 const auth = useAuth()
 const user = useUser()
-const cartStore = useCart()
 
-const cartLength = computed(() => cartStore.cart.length)
 const isMenuOpen = ref(false)
-
-function GoToCart() {
-  if (cartStore.cart.length > 0) {
-    router.push('/cart')
-  }
-}
 
 function GoToHome() {
   router.push('/')
@@ -51,11 +43,6 @@ function closeMenu() {
 
 function handleProfileClick() {
   GoToAccount()
-  closeMenu()
-}
-
-function handleCartClick() {
-  GoToCart()
   closeMenu()
 }
 
@@ -114,37 +101,31 @@ function isActive(path: string) {
         <RouterLink :class="{ active: isActive('/') }" to="/" @click="closeMenu">
           <p>{{ $t('home') }}</p>
         </RouterLink>
-        <RouterLink :class="{ active: isActive('/games') }" to="/games" @click="closeMenu">
-          <p>{{ $t('games') }}</p>
-        </RouterLink>
-        <RouterLink :class="{ active: isActive('/contact') }" to="/contact" @click="closeMenu">
-          <p>{{ $t('contact') }}</p>
-        </RouterLink>
-        <RouterLink
-          :class="{ active: isActive('/subscription') }"
-          to="/subscription"
-          @click="closeMenu"
-        >
-          <p>{{ $t('subscription') }}</p>
-        </RouterLink>
-
-        <!-- Authenticated User Links -->
+        <!-- Signed-in users are subscribers: every game is already theirs, so
+             the library is the games page and there is nothing to buy. -->
         <RouterLink
           v-if="auth.isLoggedIn"
           :class="{ active: isActive('/library') }"
           to="/library"
           @click="closeMenu"
         >
-          <p>{{ $t('my_library') }}</p>
+          <p>{{ $t('games') }}</p>
         </RouterLink>
-        <RouterLink
-          v-if="auth.isLoggedIn"
-          :class="{ active: isActive('/wishlist') }"
-          to="/wishlist"
-          @click="closeMenu"
-        >
-          <p>{{ $t('wishlist') }}</p>
-        </RouterLink>
+        <template v-else>
+          <RouterLink :class="{ active: isActive('/games') }" to="/games" @click="closeMenu">
+            <p>{{ $t('games') }}</p>
+          </RouterLink>
+          <RouterLink :class="{ active: isActive('/contact') }" to="/contact" @click="closeMenu">
+            <p>{{ $t('contact') }}</p>
+          </RouterLink>
+          <RouterLink
+            :class="{ active: isActive('/subscription') }"
+            to="/subscription"
+            @click="closeMenu"
+          >
+            <p>{{ $t('subscription') }}</p>
+          </RouterLink>
+        </template>
 
         <!-- Mobile-only Navigation Items -->
         <RouterLink
@@ -154,7 +135,7 @@ function isActive(path: string) {
           class="mobile-menu-item"
           @click="closeMenu"
         >
-          <p>{{ $t('account') }}</p>
+          <p>{{ $t('account_title') }}</p>
         </RouterLink>
         <!-- Authentication Links for Mobile Menu -->
         <RouterLink
@@ -166,13 +147,6 @@ function isActive(path: string) {
         >
           <p>{{ $t('log_in') }}</p>
         </RouterLink>
-        <a
-          class="mobile-menu-item"
-          :class="{ 'cart-disabled': cartLength === 0 }"
-          @click="handleCartClick"
-        >
-          <p>{{ $t('cart') }} ({{ cartLength }})</p>
-        </a>
       </div>
     </nav>
   </header>
@@ -417,34 +391,8 @@ nav.mobile-nav {
   background-color: #849433;
 }
 
-.cart-button {
-  margin-left: 5px;
-  cursor: pointer;
-  font-weight: bold;
-  font-size: 16px;
-  background-color: #3399ff;
-  color: white !important;
-  height: 35px;
-  padding: 5px;
-  transform: skew(-20deg);
-  border-radius: 5px;
-  display: flex;
-  align-items: center;
-}
-
-.cart-button > * {
-  transform: skew(20deg);
-  display: inline-block;
-}
-
-.cart-button p,
 .mobile-user-navigation a p {
   display: none;
-}
-
-.cart-disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 /* Icon Styles
@@ -454,12 +402,6 @@ nav.mobile-nav {
   width: 25px;
   fill: var(--light);
   transition-duration: 0.2s;
-}
-
-.cart_icon {
-  margin-left: 5px;
-  height: 20px;
-  width: 20px;
 }
 
 a:hover > .icon {

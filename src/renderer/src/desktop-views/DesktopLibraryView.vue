@@ -27,6 +27,15 @@ const showSubscriptionGames = ref(false)
 const currentSubscription = ref<Subscription | null>(null)
 const { subscriptions } = storeToRefs(subscriptionStore)
 
+// Students play the whole catalogue through their subscription. Without an
+// active one the library only holds what they own, and renewing happens on
+// boly.cl: the app has no purchase pages for signed-in users.
+const showRenewNotice = computed(() => !currentSubscription.value && user.roleId === 2)
+
+function openSubscriptionSite() {
+  window.open('https://boly.cl/subscription', '_blank')
+}
+
 // /v1/games/user doesn't carry the educational summary; the public store list
 // (games.getAll, which this view already loads) does, so each library game
 // borrows it from there by id. Assigned onto the same objects rather than
@@ -335,6 +344,12 @@ onBeforeUnmount(() => {
           <h1>{{ $t('user_games', { user: user.username }) }}</h1>
         </div>
       </div>
+      <div v-if="showRenewNotice" class="renew-notice" role="status">
+        <p>{{ $t('library_subscription_inactive') }}</p>
+        <button type="button" class="browse-button" @click="openSubscriptionSite">
+          {{ $t('library_renew_on_boly') }}
+        </button>
+      </div>
       <div class="title-container filter-controls">
         <div class="filter-buttons">
           <button
@@ -393,9 +408,6 @@ onBeforeUnmount(() => {
       </template>
       <div v-else class="empty-library">
         <p>{{ showSubscriptionGames ? $t('no_subscription_games') : $t('no_owned_games') }}</p>
-        <button class="browse-button" @click="router.push('/games')">
-          {{ $t('browse_games') }}
-        </button>
       </div>
     </div>
   </div>
@@ -496,6 +508,31 @@ h2 {
   display: flex;
   justify-content: center;
   align-items: center;
+}
+
+.renew-notice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  margin: 0 40px 20px;
+  padding: 1rem 1.5rem;
+  border-left: 4px solid var(--boly-button-pink);
+  border-radius: 5px;
+  background-color: var(--boly-bg-dark-transparent);
+  font-family: 'Poppins', sans-serif;
+}
+
+.renew-notice p {
+  flex: 1 1 20rem;
+  margin: 0;
+  color: var(--color-text);
+  text-align: left;
+}
+
+.renew-notice .browse-button {
+  flex-shrink: 0;
 }
 
 .empty-library {

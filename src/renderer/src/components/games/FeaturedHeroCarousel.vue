@@ -3,7 +3,7 @@
  * Home-page hero: a cinematic, full-bleed carousel of the most recently
  * released games. Replaces the static Boly logo that used to fill this space.
  */
-import { computed, inject, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
@@ -23,7 +23,6 @@ const auth = useAuth()
 const user = useUser()
 const gamesStore = useGames()
 const { loading } = storeToRefs(gamesStore)
-const shoppingCart = inject<any>('cart')
 
 const featuredGames = ref<Game[]>([])
 const carouselRef = ref<any>()
@@ -44,8 +43,6 @@ const settings = computed(() => ({
   touchDrag: true
 }))
 
-const currency = computed(() => (i18n.locale.value === 'en' ? 'USD' : 'CLP'))
-
 /** banner_url is a string on most games and an array of media on newer ones. */
 function bannerFor(item: Game): string {
   const raw = item.banner_url as unknown
@@ -58,19 +55,6 @@ function bannerFor(item: Game): string {
 function localized(field: unknown): string {
   const value = field as Record<string, string> | undefined
   return value?.[i18n.locale.value] || value?.en || ''
-}
-
-function priceOf(item: Game): number {
-  const price = item.price as Record<string, number> | undefined
-  return Number(price?.[i18n.locale.value] ?? 0)
-}
-
-function formattedPrice(item: Game): string {
-  return Intl.NumberFormat(i18n.locale.value === 'en' ? 'en-US' : 'es-CL', {
-    style: 'currency',
-    currency: currency.value,
-    currencyDisplay: 'symbol'
-  }).format(priceOf(item))
 }
 
 function hasAccess(item: Game): boolean {
@@ -90,18 +74,6 @@ function goToGame(id: number) {
 
 function goToLibrary() {
   router.push('/library')
-}
-
-function addToCart(item: Game) {
-  shoppingCart?.addGameToCart({ game_id: item.game_id })
-}
-
-function removeFromCart(item: Game) {
-  shoppingCart?.removeGameFromCart({ game_id: item.game_id })
-}
-
-function inCart(item: Game): boolean {
-  return !!shoppingCart?.cart?.includes(item.game_id)
 }
 
 function moveToSlide(index: number) {
@@ -165,13 +137,8 @@ onBeforeUnmount(() => {
                 {{ localized(item.description) }}
               </p>
 
-              <p class="hero-price">
-                <template v-if="hasAccess(item)">{{ accessLabel(item) }}</template>
-                <template v-else-if="priceOf(item) > 0">
-                  {{ currency }} {{ formattedPrice(item) }}
-                </template>
-                <template v-else>{{ $t('claim_for_free') }}</template>
-              </p>
+              <!-- Every game comes with the subscription: no price or cart. -->
+              <p class="hero-price">{{ accessLabel(item) }}</p>
 
               <div class="hero-actions">
                 <template v-if="hasAccess(item)">
@@ -182,21 +149,13 @@ onBeforeUnmount(() => {
                     {{ $t('see_more').toUpperCase() }}
                   </button>
                 </template>
-                <template v-else>
-                  <button class="hero-btn hero-btn-primary" @click="goToGame(item.game_id)">
-                    {{ $t('see_more').toUpperCase() }}
-                  </button>
-                  <button
-                    v-if="inCart(item)"
-                    class="hero-btn hero-btn-ghost"
-                    @click="removeFromCart(item)"
-                  >
-                    {{ $t('remove_from_cart_nq').toUpperCase() }}
-                  </button>
-                  <button v-else class="hero-btn hero-btn-ghost" @click="addToCart(item)">
-                    {{ $t('add_to_cart').toUpperCase() }}
-                  </button>
-                </template>
+                <button
+                  v-else
+                  class="hero-btn hero-btn-primary"
+                  @click="goToGame(item.game_id)"
+                >
+                  {{ $t('see_more').toUpperCase() }}
+                </button>
               </div>
             </div>
           </article>
