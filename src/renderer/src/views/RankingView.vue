@@ -8,10 +8,10 @@ import SkeletonList from '@/components/skeletons/SkeletonList.vue'
 import { formatPlayTime } from '@/utils/playTime'
 
 // Players compared by play time or unlocked achievements, inside their course,
-// their school or across Boly. The API decides who is in each list; the
-// global one only holds players who opted in, which is switched on here.
+// their school or across Boly. Every role counts. The API decides who is in
+// each list; the global one only holds accounts that opted in, which is
+// switched on here.
 const ROLE_ADMIN = 1
-const ROLE_USER = 2
 const ROLE_EDUCATOR = 4
 
 const SCOPES: RankingScope[] = ['course', 'institution', 'global']
@@ -23,8 +23,6 @@ const router = useRouter()
 const { t, locale } = useI18n()
 const user = useUser()
 const rankingStore = useRanking()
-
-const isPlayer = computed(() => Number(user.roleId) === ROLE_USER)
 
 // Educators have no course of their own and admins no school, so those tabs
 // would only ever be empty for them.
@@ -179,7 +177,7 @@ onMounted(load)
     </div>
 
     <!-- The global ranking is opt-in: nobody is listed until they say so. -->
-    <section v-if="scope === 'global' && isPlayer && board" class="optin">
+    <section v-if="scope === 'global' && board" class="optin">
       <div class="optin-text">
         <h2>{{ t('ranking_optin_title') }}</h2>
         <p>{{ t('ranking_optin_desc') }}</p>

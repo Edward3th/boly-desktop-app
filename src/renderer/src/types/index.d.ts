@@ -216,7 +216,8 @@ export interface RankingEntry {
 // in_ranking with rank null: a player of this scope with no activity yet.
 export type MyRankingStatus =
   | { in_ranking: true; rank: number | null; playtime_minutes: number; achievements: number }
-  | { in_ranking: false; reason: 'not_opted_in' | 'not_a_player' }
+  // not_a_member: an educator or admin looking at a list they don't belong to.
+  | { in_ranking: false; reason: 'not_opted_in' | 'not_a_member' }
 
 export type RankingResponse =
   | {
@@ -235,8 +236,7 @@ export type RankingResponse =
       scope_name: string | null
       players: number
       entries: RankingEntry[]
-      // null for educators and admins, who are never ranked.
-      me: MyRankingStatus | null
+      me: MyRankingStatus
     }
 
 export interface RankingPlace {
@@ -246,7 +246,7 @@ export interface RankingPlace {
 
 export interface RankingPosition {
   available: boolean
-  reason?: 'no_course' | 'no_institution' | 'not_opted_in' | 'not_a_player'
+  reason?: 'no_course' | 'no_institution' | 'not_opted_in' | 'not_a_member'
   name?: string | null
   playtime?: RankingPlace
   achievements?: RankingPlace
@@ -267,8 +267,7 @@ export interface MyStats {
   totals: Record<RankingPeriod, { playtime_minutes: number; achievements: number }>
   week_start: string
   month_start: string
-  // null for educators and admins.
-  positions: Record<RankingScope, RankingPosition> | null
+  positions: Record<RankingScope, RankingPosition>
   games: MyGameStats[]
 }
 
