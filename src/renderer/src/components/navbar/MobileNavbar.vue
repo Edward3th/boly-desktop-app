@@ -103,14 +103,14 @@ function isActive(path: string) {
         </RouterLink>
         <!-- Signed-in users are subscribers: every game is already theirs, so
              the library is the games page and there is nothing to buy. -->
-        <RouterLink
-          v-if="auth.isLoggedIn"
-          :class="{ active: isActive('/library') }"
-          to="/library"
-          @click="closeMenu"
-        >
-          <p>{{ $t('games') }}</p>
-        </RouterLink>
+        <template v-if="auth.isLoggedIn">
+          <RouterLink :class="{ active: isActive('/library') }" to="/library" @click="closeMenu">
+            <p>{{ $t('games') }}</p>
+          </RouterLink>
+          <RouterLink :class="{ active: isActive('/ranking') }" to="/ranking" @click="closeMenu">
+            <p>{{ $t('ranking') }}</p>
+          </RouterLink>
+        </template>
         <template v-else>
           <RouterLink :class="{ active: isActive('/games') }" to="/games" @click="closeMenu">
             <p>{{ $t('games') }}</p>

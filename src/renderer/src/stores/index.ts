@@ -14,6 +14,7 @@ import useGameRoutes from '../desktop-stores/gameRoutes'
 import useCodes from './codes'
 import useEmails from './emails'
 import useCurriculum from './curriculum'
+import useRanking from './ranking'
 
 export {
   useAuth,
@@ -31,5 +32,6 @@ export {
   useGameRoutes,
   useCodes,
   useEmails,
-  useCurriculum
+  useCurriculum,
+  useRanking
 }

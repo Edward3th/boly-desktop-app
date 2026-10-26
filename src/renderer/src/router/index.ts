@@ -256,6 +256,14 @@ export const router = createRouter({
       meta: {
         requiresAuth: true
       }
+    },
+    {
+      path: '/ranking',
+      name: 'ranking',
+      component: () => import('../views/RankingView.vue'),
+      meta: {
+        requiresAuth: true
+      }
     }
   ],
   //@ts-ignore

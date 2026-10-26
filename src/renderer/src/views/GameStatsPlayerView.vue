@@ -1,657 +1,489 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { useAuth, useUser, useGames } from '@/stores'
-import type { Game } from '@/types'
+import { useRanking } from '@/stores'
+import type { LocalizedString, MyGameStats, MyStats, RankingPeriod, RankingPosition, RankingScope } from '@/types'
+import SkeletonList from '@/components/skeletons/SkeletonList.vue'
 import ClockhistoryIcon from '@/components/icons/ClockhistoryIcon.vue'
-import SkeletonDetail from '@/components/skeletons/SkeletonDetail.vue'
-import axios from 'axios'
-import { resolveImageUrl } from '@/utils/imageUrl'
+import TrophyIcon from '@/components/icons/TrophyIcon.vue'
+import { resolveImageUrl, PLACEHOLDER_IMAGE } from '@/utils/imageUrl'
+import { formatPlayTime } from '@/utils/playTime'
+
+// The player's own numbers: play time and achievements for the period, their
+// place in each ranking, and every game they've played. One request — this
+// used to ask for each game's play time one after another.
+const PERIODS: RankingPeriod[] = ['week', 'month', 'all']
+const SCOPES: RankingScope[] = ['course', 'institution', 'global']
 
 const router = useRouter()
-const { locale } = useI18n()
-const auth = useAuth()
-const user = useUser()
-const gamesStore = useGames()
+const { t, locale } = useI18n()
+const rankingStore = useRanking()
 
+// All time by default: a player's own totals mean most in full. The ranking
+// itself opens on this week, where everyone starts level.
+const period = ref<RankingPeriod>('all')
+const stats = ref<MyStats | null>(null)
 const isLoading = ref(true)
-const userGames = ref<Game[]>([])
-const subscriptionGames = ref<Game[]>([])
-const playTimes = ref<{ [gameId: number]: number }>({})
-const playTimeLoading = ref<{ [gameId: number]: boolean }>({})
-const activeSection = ref<'owned' | 'subscription'>('owned')
+const error = ref<string | null>(null)
+let requestId = 0
 
-// Redirect if not logged in
-if (!auth.isLoggedIn) {
-  router.push('/login')
+const totals = computed(() => stats.value?.totals[period.value] ?? null)
+
+const localized = (value: LocalizedString | null | undefined) =>
+  value ? value[locale.value] || value.es || value.en || '' : ''
+
+// A few legacy games store a JSON array of banner images — show the first.
+function bannerOf(game: MyGameStats): string {
+  const raw = game.banner_url?.trim()
+  const path = raw?.startsWith('[') ? (JSON.parse(raw)[0] ?? null) : raw
+  return resolveImageUrl(path) || PLACEHOLDER_IMAGE
 }
 
-const gameTitle = (game: Game) => {
-  if (game.name && typeof game.name === 'object') {
-    const name = game.name as { [key: string]: string }
-    return name[locale.value] || name.en || 'Unknown Game'
-  }
-  return 'Unknown Game'
+function placeText(position: RankingPosition, which: 'playtime' | 'achievements'): string {
+  const place = position[which]
+  if (!place || place.rank == null) return t('stats_no_rank')
+  return t('stats_rank_of', { rank: place.rank, players: place.players })
 }
 
-const formatPlayTime = (minutes: number): string => {
-  if (minutes === 0) return '0h 0m'
-  const hours = Math.floor(minutes / 60)
-  const mins = minutes % 60
-  return `${hours}h ${mins}m`
-}
-
-async function fetchUserGames() {
-  if (!user.userId) return
-
-  try {
-    const response = await axios.get(`/v1/games/user/${user.userId}`)
-    if (response.status === 200 && response.data) {
-      const gamesList = response.data[0]?.game || []
-      console.log('Extracted games list for stats:', gamesList)
-
-      userGames.value = gamesList.map((game: Game) => {
-        return game
-      })
-
-      // Fetch play time for each game
-      for (const game of userGames.value) {
-        await fetchPlayTimeForGame(game.game_id)
-      }
-    }
-  } catch (error) {
-    console.error('Error fetching user games:', error)
+function positionNote(position: RankingPosition): string | null {
+  switch (position.reason) {
+    case 'no_course':
+      return t('stats_no_course')
+    case 'no_institution':
+      return t('stats_no_institution')
+    case 'not_opted_in':
+      return t('stats_not_opted_in')
+    default:
+      return null
   }
 }
 
-async function fetchSubscriptionGames() {
-  if (!user.userId) return
-
-  try {
-    const response = await gamesStore.getSubscriptionGames(user.userId)
-    subscriptionGames.value = response.map((game: Game) => {
-      return game
-    })
-
-    // Fetch play time for each subscription game
-    for (const game of subscriptionGames.value) {
-      await fetchPlayTimeForGame(game.game_id)
-    }
-  } catch (error) {
-    console.error('Error fetching subscription games:', error)
-  }
+function openRanking(scope: RankingScope) {
+  router.push({ path: '/ranking', query: { scope, period: period.value } })
 }
 
-async function fetchPlayTimeForGame(gameId: number) {
-  if (!auth.token) return
-
-  playTimeLoading.value[gameId] = true
+async function load() {
+  const current = ++requestId
+  isLoading.value = true
+  error.value = null
   try {
-    const time = await gamesStore.getPlayTime(gameId, { token: auth.token })
-    playTimes.value[gameId] = time || 0
-    console.log(`Fetched play time for game ${gameId}:`, time)
-  } catch (error) {
-    console.error(`Error fetching play time for game ${gameId}:`, error)
-    playTimes.value[gameId] = 0
+    const result = await rankingStore.fetchMyStats(period.value)
+    if (current === requestId) stats.value = result
+  } catch (e) {
+    console.error('Error loading player stats:', e)
+    if (current === requestId) error.value = t('stats_load_error')
   } finally {
-    playTimeLoading.value[gameId] = false
+    if (current === requestId) isLoading.value = false
   }
 }
 
-function viewAchievements(gameId: number) {
-  router.push(`/games/${gameId}/achievements`)
-}
-
-function viewGameDetails(gameId: number) {
-  router.push(`/games/${gameId}`)
-}
-
-const totalPlayTime = computed(() => {
-  const currentGames = activeSection.value === 'owned' ? userGames.value : subscriptionGames.value
-  return currentGames.reduce((total, game) => {
-    return total + (playTimes.value[game.game_id] || 0)
-  }, 0)
-})
-
-const sortedGames = computed(() => {
-  const currentGames = activeSection.value === 'owned' ? userGames.value : subscriptionGames.value
-  return [...currentGames].sort((a, b) => {
-    const timeA = playTimes.value[a.game_id] || 0
-    const timeB = playTimes.value[b.game_id] || 0
-    return timeB - timeA // Sort by play time descending
-  })
-})
-
-const currentGamesCount = computed(() => {
-  return activeSection.value === 'owned' ? userGames.value.length : subscriptionGames.value.length
-})
-
-onMounted(async () => {
-  if (auth.isLoggedIn && user.userId) {
-    try {
-      // First fetch user data
-      const response = await axios.get(`/v1/users/${user.userId}`)
-      if (response.status === 200) {
-        user.setUser(response.data)
-        // Check for subscription and fetch appropriate games
-        await user.checkSubscription()
-
-        // Fetch owned games and their play times
-        await fetchUserGames()
-
-        // If user has subscription, fetch subscription games
-        if (user.isSubscribed) {
-          await fetchSubscriptionGames()
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching user data:', error)
-    } finally {
-      isLoading.value = false
-    }
-  } else {
-    isLoading.value = false
-  }
-})
+watch(period, load)
+onMounted(load)
 </script>
 
 <template>
-  <div class="stats-container">
-    <SkeletonDetail v-if="isLoading" />
-
-    <div v-else class="main-content">
-      <div class="header-section">
-        <h1 class="title-bold">{{ $t('game_stats').toUpperCase() }}</h1>
-
-        <!-- Section Buttons -->
-        <div v-if="user.isSubscribed" class="section-buttons">
-          <button
-            class="section-button"
-            :class="{ active: activeSection === 'owned' }"
-            @click="activeSection = 'owned'"
-          >
-            {{ $t('my_games') }} ({{ userGames.length }})
-          </button>
-          <button
-            class="section-button"
-            :class="{ active: activeSection === 'subscription' }"
-            @click="activeSection = 'subscription'"
-          >
-            {{ $t('subscription_access_games') }} ({{ subscriptionGames.length }})
-          </button>
-        </div>
-        <div v-else class="single-section-title">{{ $t('my_games') }} ({{ userGames.length }})</div>
-
-        <div class="total-stats">
-          <div class="total-play-time">
-            <ClockhistoryIcon class="clock-icon" />
-            <span class="total-time-label">{{ $t('total') }} {{ $t('play_time') }}:</span>
-            <span class="total-time-value">{{ formatPlayTime(totalPlayTime) }}</span>
-          </div>
-          <div class="games-count">
-            <span
-              >{{ activeSection === 'owned' ? $t('my_games') : $t('subscription_access_games') }}:
-              {{ currentGamesCount }}</span
-            >
-          </div>
-        </div>
-      </div>
-
-      <!-- Empty State for Owned Games -->
-      <div v-if="activeSection === 'owned' && userGames.length === 0" class="empty-stats">
-        <p>{{ $t('no_owned_games') }}</p>
-        <button class="browse-button" @click="router.push('/games')">
-          {{ $t('browse_games') }}
+  <div class="stats-page">
+    <header class="stats-head">
+      <h1 class="stats-title">{{ t('player_stats').toUpperCase() }}</h1>
+      <div class="segmented" role="group" :aria-label="t('ranking_period_label')">
+        <button
+          v-for="p in PERIODS"
+          :key="p"
+          type="button"
+          :class="{ active: period === p }"
+          :aria-pressed="period === p"
+          @click="period = p"
+        >
+          {{ t(`ranking_period_${p}`) }}
         </button>
       </div>
+    </header>
 
-      <!-- Empty State for Subscription Games -->
-      <div
-        v-if="activeSection === 'subscription' && subscriptionGames.length === 0"
-        class="empty-stats"
-      >
-        <p>{{ $t('no_subscription_games') }}</p>
-        <button class="browse-button" @click="router.push('/subscription')">
-          {{ $t('subscribe') }}
-        </button>
-      </div>
+    <SkeletonList v-if="isLoading && !stats" :rows="4" row-height="80px" />
 
-      <!-- Games Stats List -->
-      <div v-if="sortedGames.length > 0" class="games-stats-list">
-        <div v-for="game in sortedGames" :key="game.game_id" class="game-stat-card">
-          <div class="game-image" @click="viewGameDetails(game.game_id)">
-            <img :src="resolveImageUrl(game.banner_url)" :alt="gameTitle(game)" />
-            <div class="game-overlay">
-              <span class="view-details">{{ $t('see_more') }}</span>
-            </div>
-          </div>
-
-          <div class="game-info">
-            <h3 class="game-title" @click="viewGameDetails(game.game_id)">
-              {{ gameTitle(game).toUpperCase() }}
-            </h3>
-
-            <div class="play-time-section">
-              <div class="play-time-container">
-                <div v-if="playTimeLoading[game.game_id]" class="play-time-loading">
-                  <span class="loading-dot"></span>
-                  <span class="loading-dot"></span>
-                  <span class="loading-dot"></span>
-                </div>
-                <div v-else class="play-time-display">
-                  <ClockhistoryIcon class="clock-icon" />
-                  <span class="play-time-value">{{
-                    formatPlayTime(playTimes[game.game_id] || 0)
-                  }}</span>
-                </div>
-              </div>
-            </div>
-
-            <div class="game-actions">
-              <button class="achievements-button" @click="viewAchievements(game.game_id)">
-                {{ $t('see_achievements') }}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+    <div v-else-if="error" class="message" role="alert">
+      <p>{{ error }}</p>
+      <button type="button" class="action-button" @click="load">{{ t('retry') }}</button>
     </div>
+
+    <template v-else-if="stats && totals">
+      <section class="totals" :class="{ 'is-refreshing': isLoading }">
+        <div class="tile">
+          <ClockhistoryIcon class="tile-icon" />
+          <span class="tile-label">{{ t('stats_playtime') }}</span>
+          <span class="tile-value">{{ formatPlayTime(totals.playtime_minutes) }}</span>
+        </div>
+        <div class="tile">
+          <TrophyIcon class="tile-icon" />
+          <span class="tile-label">{{ t('stats_achievements') }}</span>
+          <span class="tile-value">{{ totals.achievements }}</span>
+        </div>
+      </section>
+
+      <section v-if="stats.positions" class="block" :class="{ 'is-refreshing': isLoading }">
+        <h2 class="block-title">{{ t('stats_positions_title') }}</h2>
+        <div class="positions">
+          <button
+            v-for="scope in SCOPES"
+            :key="scope"
+            type="button"
+            class="position"
+            @click="openRanking(scope)"
+          >
+            <span class="position-scope">{{ t(`ranking_scope_${scope}`) }}</span>
+            <span v-if="stats.positions[scope].name" class="position-name">
+              {{ stats.positions[scope].name }}
+            </span>
+            <template v-if="positionNote(stats.positions[scope])">
+              <span class="position-note">{{ positionNote(stats.positions[scope]) }}</span>
+            </template>
+            <template v-else>
+              <span class="position-line">
+                <ClockhistoryIcon class="line-icon" />
+                {{ placeText(stats.positions[scope], 'playtime') }}
+              </span>
+              <span class="position-line">
+                <TrophyIcon class="line-icon" />
+                {{ placeText(stats.positions[scope], 'achievements') }}
+              </span>
+            </template>
+            <span class="position-cta">{{ t('stats_view_ranking') }} →</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="block">
+        <h2 class="block-title">{{ t('stats_by_game') }}</h2>
+        <p class="block-hint">{{ t('stats_by_game_hint') }}</p>
+
+        <div v-if="stats.games.length === 0" class="message">
+          <p>{{ t('stats_no_games') }}</p>
+          <button type="button" class="action-button" @click="router.push('/library')">
+            {{ t('go_to_games') }}
+          </button>
+        </div>
+
+        <ul v-else class="games">
+          <li v-for="game in stats.games" :key="game.game_id" class="game">
+            <img :src="bannerOf(game)" :alt="localized(game.name)" class="game-banner" />
+            <div class="game-info">
+              <RouterLink :to="`/games/${game.game_id}`" class="game-name">
+                {{ localized(game.name) }}
+              </RouterLink>
+              <span class="game-line">
+                <ClockhistoryIcon class="line-icon" />
+                {{ formatPlayTime(game.playtime_minutes) }}
+              </span>
+              <span v-if="game.achievements_total > 0" class="game-line">
+                <TrophyIcon class="line-icon" />
+                {{ game.achievements_unlocked }} / {{ game.achievements_total }}
+                <span class="progress" aria-hidden="true">
+                  <span
+                    class="progress-fill"
+                    :style="{ width: (100 * game.achievements_unlocked) / game.achievements_total + '%' }"
+                  ></span>
+                </span>
+              </span>
+            </div>
+            <button
+              v-if="game.achievements_total > 0"
+              type="button"
+              class="action-button"
+              @click="router.push(`/games/${game.game_id}/achievements`)"
+            >
+              {{ t('see_achievements') }}
+            </button>
+          </li>
+        </ul>
+      </section>
+    </template>
   </div>
 </template>
 
 <style scoped>
-.stats-container {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 1rem;
-  min-height: 70vh;
-}
-
-.main-content {
+.stats-page {
+  box-sizing: border-box;
   width: 100%;
-}
-
-.header-section {
-  margin-bottom: 2rem;
-}
-
-.section-buttons {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 20px;
   display: flex;
-  gap: 10px;
-  justify-content: center;
-  margin-bottom: 1.5rem;
-}
-
-.section-button {
-  font-family: 'Anton', Impact, sans-serif;
-  font-style: italic;
-  padding: 8px 20px;
-  border: none;
-  border-radius: 5px;
-  background-color: var(--boly-button-pink);
-  color: white;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  font-size: 1rem;
-}
-
-.section-button.active {
-  background-color: var(--boly-button-blue);
-}
-
-.section-button:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-}
-
-.single-section-title {
-  text-align: center;
-  font-family: 'Anton', Impact, sans-serif;
-  font-style: italic;
-  font-size: 1.2rem;
-  color: var(--color-text);
-  margin-bottom: 1.5rem;
-  padding: 8px 20px;
-  background-color: var(--boly-button-pink);
-  color: white;
-  border-radius: 5px;
-  display: inline-block;
-  margin-left: 50%;
-  transform: translateX(-50%);
-}
-
-.title-bold {
-  font-family: 'Anton', Impact, sans-serif;
-  font-style: italic;
-  font-size: 3rem;
-  text-align: center;
-  margin-bottom: 1rem;
-  color: var(--color-text);
-}
-
-.total-stats {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 2rem;
-  flex-wrap: wrap;
-  margin-bottom: 1rem;
-}
-
-.total-play-time {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: var(--boly-button-blue);
-  color: white;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+  color: var(--light);
   font-family: 'Poppins', sans-serif;
-  font-weight: bold;
 }
 
-.games-count {
-  background: var(--boly-button-pink);
-  color: white;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  font-family: 'Poppins', sans-serif;
-  font-weight: bold;
-}
-
-.clock-icon {
-  width: 20px;
-  height: 20px;
-}
-
-.total-time-label {
-  font-size: 1rem;
-}
-
-.total-time-value {
-  font-size: 1.1rem;
-  font-weight: 700;
-}
-
-.empty-stats {
+.stats-head {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  padding: 4rem;
+  gap: 0.75rem;
+}
+
+.stats-title {
+  margin: 0;
+  color: var(--light);
+  font-family: 'Anton', Impact, Haettenschweiler, 'Arial Narrow Bold', sans-serif;
+  font-style: italic;
+  font-size: clamp(2rem, 5.5vw, 3rem);
   text-align: center;
-  gap: 2rem;
 }
 
-.empty-stats p {
-  font-size: 1.2rem;
-  color: var(--color-text);
-  opacity: 0.8;
-}
-
-.browse-button {
+.segmented {
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.75rem 2rem;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--boly-bg-dark-transparent);
+  border: 1px solid rgba(251, 251, 251, 0.08);
+}
+
+.segmented button {
+  padding: 0.4rem 1rem;
   border: none;
-  border-radius: 8px;
-  background-color: var(--boly-button-pink);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--light-gray);
+  font-family: 'Poppins', sans-serif;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.segmented button:hover {
+  color: var(--light);
+}
+
+.segmented button.active {
+  background: var(--boly-button-purple);
   color: white;
+  font-weight: 600;
+}
+
+.is-refreshing {
+  opacity: 0.55;
+  transition: opacity 0.2s ease;
+}
+
+/* Totals for the period */
+.totals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.tile {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 0.9rem;
+  align-items: center;
+  padding: 1rem 1.25rem;
+  border-radius: 14px;
+  background: var(--boly-button-blue);
+}
+
+.tile + .tile {
+  background: var(--boly-button-pink);
+}
+
+.tile-icon {
+  grid-row: span 2;
+  width: 34px;
+  height: 34px;
+  fill: white;
+}
+
+.tile-label {
+  font-size: 0.85rem;
+  opacity: 0.9;
+}
+
+.tile-value {
+  font-family: 'Anton', Impact, sans-serif;
+  font-size: 2rem;
+  line-height: 1.1;
+}
+
+/* Sections */
+.block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.block-title {
+  margin: 0;
   font-family: 'Anton', Impact, sans-serif;
   font-style: italic;
-  font-size: 1.1rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
+  font-size: 1.5rem;
+  font-weight: normal;
 }
 
-.browse-button:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+.block-hint {
+  margin: -0.4rem 0 0;
+  color: var(--light-gray);
+  font-size: 0.85rem;
 }
 
-.games-stats-list {
+/* Ranking positions */
+.positions {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 1.5rem;
-  padding: 1rem 0;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
 }
 
-.game-stat-card {
+.position {
   display: flex;
-  background: var(--boly-bg-dark-blue);
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  transition: all 0.3s ease;
-  min-height: 120px;
-}
-
-.game-stat-card:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
-}
-
-.game-image {
-  border-radius: 8px;
-  position: relative;
-  width: 120px;
-  height: 120px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.3rem;
+  padding: 0.9rem 1.1rem;
+  border-radius: 14px;
+  border: 1px solid rgba(251, 251, 251, 0.08);
+  background: rgba(251, 251, 251, 0.03);
+  color: var(--light);
+  font-family: 'Poppins', sans-serif;
+  text-align: left;
   cursor: pointer;
-  overflow: hidden;
+  transition: border-color 0.2s ease;
 }
 
-.game-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.3s ease;
+.position:hover,
+.position:focus-visible {
+  border-color: var(--boly-button-purple);
 }
 
-.game-overlay {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+.position-scope {
+  font-family: 'Anton', Impact, sans-serif;
+  font-style: italic;
+  font-size: 1.2rem;
+}
+
+.position-name {
+  color: var(--light-gray);
+  font-size: 0.82rem;
+}
+
+.position-line,
+.game-line {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.92rem;
+}
+
+.position-note {
+  color: var(--light-gray);
+  font-size: 0.88rem;
+}
+
+.position-cta {
+  margin-top: auto;
+  padding-top: 0.3rem;
+  color: var(--boly-button-light-blue);
+  font-size: 0.82rem;
+}
+
+.line-icon {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+  flex-shrink: 0;
+}
+
+/* Per game */
+.games {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.game {
   display: flex;
   align-items: center;
-  justify-content: center;
-  opacity: 0;
-  transition: opacity 0.3s ease;
+  gap: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 14px;
+  background: rgba(251, 251, 251, 0.03);
+  border: 1px solid rgba(251, 251, 251, 0.08);
 }
 
-.game-image:hover .game-overlay {
-  opacity: 1;
-}
-
-.game-image:hover img {
-  transform: scale(1.05);
-}
-
-.view-details {
-  color: white;
-  font-family: 'Poppins', sans-serif;
-  font-weight: bold;
-  font-size: 0.9rem;
-  text-align: center;
+.game-banner {
+  width: 120px;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 8px;
+  flex-shrink: 0;
 }
 
 .game-info {
   flex: 1;
-  padding: 1rem;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  gap: 0.25rem;
 }
 
-.game-title {
-  font-family: 'Poppins', sans-serif;
-  font-size: 1rem;
-  font-weight: bold;
-  color: var(--color-text);
-  margin: 0 0 0.75rem 0;
-  cursor: pointer;
-  transition: color 0.2s ease;
-  line-height: 1.2;
+.game-name {
+  color: var(--light);
+  font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
-.game-title:hover {
-  color: var(--boly-button-blue);
+.game-name:hover {
+  color: var(--boly-button-light-blue);
 }
 
-.play-time-section {
-  margin-bottom: 0.75rem;
+.progress {
+  display: inline-block;
+  width: 90px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(251, 251, 251, 0.12);
+  overflow: hidden;
 }
 
-.play-time-container {
-  display: flex;
-  align-items: center;
-  background: rgba(0, 0, 0, 0.05);
-  border-radius: 6px;
-  padding: 0.5rem;
-  min-height: 35px;
+.progress-fill {
+  display: block;
+  height: 100%;
+  background: var(--boly-featured-green);
 }
 
-.play-time-display {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.play-time-display .clock-icon {
-  width: 16px;
-  height: 16px;
-}
-
-.play-time-value {
-  font-family: 'Poppins', sans-serif;
-  font-weight: bold;
-  color: var(--color-text);
-  font-size: 0.9rem;
-}
-
-.play-time-loading {
-  display: flex;
-  justify-content: center;
-  gap: 4px;
-  align-items: center;
-  width: 100%;
-}
-
-.loading-dot {
-  width: 6px;
-  height: 6px;
-  background-color: rgba(0, 0, 0, 0.4);
-  border-radius: 50%;
-  animation: dot-pulse 1.4s infinite ease-in-out;
-}
-
-.loading-dot:nth-child(2) {
-  animation-delay: 0.2s;
-}
-
-.loading-dot:nth-child(3) {
-  animation-delay: 0.4s;
-}
-
-@keyframes dot-pulse {
-  0%,
-  100% {
-    transform: scale(0.6);
-    opacity: 0.6;
-  }
-  50% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-.game-actions {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.achievements-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0.5rem 1rem;
+.action-button {
+  padding: 0.5rem 1.1rem;
   border: none;
-  border-radius: 6px;
+  border-radius: 5px;
   background: var(--boly-button-blue);
   color: white;
   font-family: 'Poppins', sans-serif;
   font-size: 0.85rem;
-  font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
+  white-space: nowrap;
 }
 
-.achievements-button:hover {
-  background: var(--boly-button-light-blue);
-  transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+.action-button:hover {
+  background: var(--boly-button-blue-hover);
 }
 
-/* Mobile responsiveness */
-@media (max-width: 768px) {
-  .title-bold {
-    font-size: 2rem;
-  }
-
-  .section-buttons {
-    flex-direction: column;
-    gap: 0.5rem;
-    align-items: center;
-  }
-
-  .section-button {
-    width: 280px;
-    max-width: 90%;
-  }
-
-  .single-section-title {
-    font-size: 1rem;
-    padding: 6px 16px;
-    width: 280px;
-    max-width: 90%;
-  }
-
-  .total-stats {
-    flex-direction: column;
-    gap: 1rem;
-  }
-
-  .games-stats-list {
-    grid-template-columns: 1fr;
-    gap: 1rem;
-  }
-
-  .game-stat-card {
-    flex-direction: column;
-    min-height: auto;
-  }
-
-  .game-image {
-    width: 100%;
-    height: 180px;
-  }
+.message {
+  margin: 0;
+  padding: 1.5rem 0;
+  text-align: center;
+  color: var(--light-gray);
 }
 
-@media (max-width: 480px) {
-  .stats-container {
-    padding: 0.5rem;
+@media (max-width: 600px) {
+  .game {
+    flex-wrap: wrap;
   }
 
-  .title-bold {
-    font-size: 1.5rem;
-  }
-
-  .game-info {
-    padding: 0.75rem;
+  .game-banner {
+    width: 96px;
   }
 }
 </style>

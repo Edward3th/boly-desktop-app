@@ -196,6 +196,82 @@ export interface PublicProfile {
   games: PublicProfileGame[]
 }
 
+// ─── Rankings (GET /v1/rankings, GET /v1/rankings/me) ────────────────────────
+
+export type RankingScope = 'course' | 'institution' | 'global'
+export type RankingMetric = 'playtime' | 'achievements'
+export type RankingPeriod = 'week' | 'month' | 'all'
+
+export interface RankingEntry {
+  rank: number
+  username: string
+  profile_picture_url: string | null
+  // Only in the institution ranking.
+  course_name?: string | null
+  playtime_minutes: number
+  achievements: number
+  is_me: boolean
+}
+
+// in_ranking with rank null: a player of this scope with no activity yet.
+export type MyRankingStatus =
+  | { in_ranking: true; rank: number | null; playtime_minutes: number; achievements: number }
+  | { in_ranking: false; reason: 'not_opted_in' | 'not_a_player' }
+
+export type RankingResponse =
+  | {
+      scope: RankingScope
+      metric: RankingMetric
+      period: RankingPeriod
+      available: false
+      reason: 'no_course' | 'no_institution'
+    }
+  | {
+      scope: RankingScope
+      metric: RankingMetric
+      period: RankingPeriod
+      available: true
+      period_start: string | null
+      scope_name: string | null
+      players: number
+      entries: RankingEntry[]
+      // null for educators and admins, who are never ranked.
+      me: MyRankingStatus | null
+    }
+
+export interface RankingPlace {
+  rank: number | null
+  players: number
+}
+
+export interface RankingPosition {
+  available: boolean
+  reason?: 'no_course' | 'no_institution' | 'not_opted_in' | 'not_a_player'
+  name?: string | null
+  playtime?: RankingPlace
+  achievements?: RankingPlace
+}
+
+export interface MyGameStats {
+  game_id: number
+  name: LocalizedString
+  banner_url: string | null
+  playtime_minutes: number
+  achievements_unlocked: number
+  achievements_total: number
+}
+
+export interface MyStats {
+  period: RankingPeriod
+  show_in_global_ranking: boolean
+  totals: Record<RankingPeriod, { playtime_minutes: number; achievements: number }>
+  week_start: string
+  month_start: string
+  // null for educators and admins.
+  positions: Record<RankingScope, RankingPosition> | null
+  games: MyGameStats[]
+}
+
 export interface UserUpdateRequest {
   username: string
   email: string
