@@ -1,0 +1,38 @@
+name: Publish developer kit
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - Game_integration_readme/releases/boly-dev-kit-es.zip
+      - .github/workflows/publish-devkit.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload and verify the developer kit
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
+          BUCKET: ${{ secrets.AWS_S3_BUCKET }}
+        run: |
+          set -euo pipefail
+          kit=Game_integration_readme/releases/boly-dev-kit-es.zip
+          sha=$(sha256sum "$kit" | cut -d ' ' -f 1)
+          aws s3 cp "$kit" "s3://$BUCKET/devkit/boly-dev-kit-es.zip" \
+            --content-type application/zip --cache-control no-cache \
+            --metadata "sha256=$sha" --no-progress
+          remote_sha=$(aws s3api head-object --bucket "$BUCKET" \
+            --key devkit/boly-dev-kit-es.zip --query Metadata.sha256 --output text)
+          test "$remote_sha" = "$sha"
+          curl --fail --silent --show-error --head \
+            "https://$BUCKET.s3.$AWS_DEFAULT_REGION.amazonaws.com/devkit/boly-dev-kit-es.zip"
