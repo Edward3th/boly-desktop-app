@@ -103,6 +103,10 @@ namespace Boly
                 if (string.IsNullOrWhiteSpace(legacyPath)) return false;
                 string savesRoot = Directory;
                 if (savesRoot == null) return false;
+                string marker = null;
+                string staging = null;
+                bool markerCreated = false;
+                bool completed = false;
                 try
                 {
                     string appRoot = Path.GetFullPath(Application.persistentDataPath)
@@ -126,11 +130,24 @@ namespace Boly
                     using (var sha = SHA256.Create()) digest = sha.ComputeHash(Encoding.UTF8.GetBytes(source.ToLowerInvariant()));
                     string claims = Path.Combine(appRoot, "boly", "legacy_claims");
                     System.IO.Directory.CreateDirectory(claims);
-                    string marker = Path.Combine(claims, BitConverter.ToString(digest).Replace("-", "").ToLowerInvariant() + ".txt");
+                    marker = Path.Combine(claims, BitConverter.ToString(digest).Replace("-", "").ToLowerInvariant() + ".txt");
                     using (var lockFile = new FileStream(marker, FileMode.CreateNew, FileAccess.Write, FileShare.None))
-                    using (var writer = new StreamWriter(lockFile)) writer.Write(learner);
-                    if (isFile) File.Copy(source, destination, false);
-                    else CopyDirectory(source, destination);
+                    {
+                        markerCreated = true;
+                        using (var writer = new StreamWriter(lockFile)) writer.Write(learner);
+                    }
+                    staging = Path.Combine(savesRoot, ".claim-" + Guid.NewGuid().ToString("N"));
+                    if (isFile)
+                    {
+                        File.Copy(source, staging, false);
+                        File.Move(staging, destination);
+                    }
+                    else
+                    {
+                        CopyDirectory(source, staging);
+                        System.IO.Directory.Move(staging, destination);
+                    }
+                    completed = true;
                     return true;
                 }
                 catch (IOException e)
@@ -142,6 +159,23 @@ namespace Boly
                 {
                     Debug.LogError("[Boly] ClaimLegacy fallo: " + e.Message);
                     return false;
+                }
+                finally
+                {
+                    if (!completed)
+                    {
+                        // Una copia fallida no reclama la unica oportunidad de
+                        // migracion. La copia parcial esta en la carpeta de este alumno.
+                        try
+                        {
+                            if (staging != null && File.Exists(staging)) File.Delete(staging);
+                            if (staging != null && System.IO.Directory.Exists(staging))
+                                System.IO.Directory.Delete(staging, true);
+                        }
+                        catch (Exception e) { Debug.LogWarning("[Boly] No se pudo limpiar la copia parcial: " + e.Message); }
+                        try { if (markerCreated) File.Delete(marker); }
+                        catch (Exception e) { Debug.LogWarning("[Boly] No se pudo liberar la migracion fallida: " + e.Message); }
+                    }
                 }
             }
 
