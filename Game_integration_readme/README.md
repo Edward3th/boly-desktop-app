@@ -332,8 +332,11 @@ boly-sdk commit it copied) and writes `releases/boly-dev-kit-es.zip` — send
 that zip to studios. It refuses to run if the SDK checkout has uncommitted
 changes.
 
-Commit the rebuilt zip to `main` to publish it at the stable developer-kit
-download URL. The `Publish developer kit` GitHub Actions workflow uploads the
-zip to S3 and checks its SHA-256 metadata and public URL. It can also be run
-manually from GitHub Actions. The local `boly-api` AWS identity cannot write
-to `devkit/`, so use this release workflow for publication.
+Commit the rebuilt zip to `main` to start the `Publish developer kit` GitHub
+Actions workflow. It uploads the zip to the stable S3 URL and checks its SHA-256
+metadata and public URL. It can also be run manually from GitHub Actions.
+The publishing AWS identity needs `s3:PutObject` on
+`arn:aws:s3:::mem-testbuk-24092024/devkit/boly-dev-kit-es.zip`; the local
+`boly-api` identity does not have it. The first workflow run on 2026-10-26
+failed, leaving the older kit in S3. Grant that narrow permission to the
+release publisher before rerunning the workflow.
