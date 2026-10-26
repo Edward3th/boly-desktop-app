@@ -11,6 +11,7 @@ interface ElectronAPIExtended {
     uninstallerPath: string
   }) => Promise<{ success: boolean; message?: string; error?: string }>
   isGameRunning: (gameId: number) => Promise<boolean>
+  endGameSession: () => Promise<void>
   searchExeFiles: (baseDir?: string) => Promise<{ files?: string[]; error?: string }>
   listLibraryFolders: () => Promise<{
     folders?: { name: string; root: string; entry: string; kind: 'exe' | 'html' }[]

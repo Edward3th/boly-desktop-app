@@ -364,6 +364,13 @@ export default class GameService {
     this.activeLocalGameSession = null
     this.gameSessionLaunching = false
 
+    // Ended from outside (sign-out, session invalidated, app quitting): the
+    // window is still open. Its 'closed' handler lands back here and finds
+    // no session.
+    if (!session.window.isDestroyed()) {
+      session.window.close()
+    }
+
     WindowManager.getInstance().send('game-stopped', { gameId: session.game_id })
   }
 

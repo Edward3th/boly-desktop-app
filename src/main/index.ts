@@ -204,6 +204,15 @@ function registerIpcHandlers() {
     return gameService.playLocalGame(appData)
   })
 
+  // Signing out closes whatever game is open, so the next person to use this
+  // PC can't keep playing (and earning achievements) on the previous account.
+  // The renderer calls it before the logout request, while the token can
+  // still record the final playtime.
+  ipcMain.handle('end-game-session', async () => {
+    await gameService.cleanupActiveGameSession()
+    await gameService.cleanupActiveLocalGameSession()
+  })
+
   // Test IPC
   ipcMain.on('ping', () => console.log('pong'))
 }

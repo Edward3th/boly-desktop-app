@@ -238,6 +238,13 @@ const useAuth = defineStore('auth', {
       }
     },
     async logout() {
+      // Close the open game first, while the token can still record its final
+      // playtime — otherwise it keeps running on this account after sign-out.
+      try {
+        await window.electronAPI?.endGameSession()
+      } catch (error) {
+        console.error('Error closing the active game on logout:', error)
+      }
       try {
         // Notify backend about logout
         if (this.sessionId) {

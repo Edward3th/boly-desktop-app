@@ -28,6 +28,8 @@ interface ElectronAPIExtended {
     token: string
     gameName?: string
   }) => Promise<{ success?: boolean; error?: string }>
+  /** Closes the open game (native or browser-style) and records its final playtime. */
+  endGameSession: () => Promise<void>
   isGameRunning: (gameId: number) => Promise<boolean>
   downloadGame: (appData: { game_id: number; token: string; gameName: string; build_id?: number }) => Promise<void>
 
