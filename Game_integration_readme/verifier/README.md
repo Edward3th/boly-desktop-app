@@ -21,6 +21,7 @@ header, not quitting on `403`, or quitting on the first network hiccup.
 | 5 | Missing `-key` | The game refuses to start and sends no heartbeat |
 | 6 | Achievements (Boly SDK 0.2+) | Launched with the test-only `-boly_test_achievement BOLY_VERIFIER_TEST`, the game syncs (`GET /v1/lumen/achievements`), reports the unlock with `X-Boly-Game-Id`/`X-Boly-Key` and a `client_event_id`, retries it with the **same** id after a `500`, and keeps playing. `SKIP` for ParamsCatcher scripts; `WARN` for SDK versions without achievements. It also passes a temporary `-boly_events_dir` and expects the unlock notice file the Boly app turns into its popup (`WARN` for SDKs older than 0.3) |
 | 7 | Achievement manifest | If `boly/achievements.json` sits next to the executable, checks it and its icons with the same rules and issue codes as the Boly API on upload (`SKIP` when there is none). Scenario 6 also warns when the game reports an `api_name` the manifest doesn't declare |
+| 8 | Saved games by learner | Runs with two different mock `learner_id` values, scans AppData and the build folder for changed files, and checks Unity PlayerPrefs when `app.info` is available. Files outside Boly save folders are `WARN`, since logs and video settings can be legitimate. Play far enough to trigger a save |
 
 ## Requirements on the build
 

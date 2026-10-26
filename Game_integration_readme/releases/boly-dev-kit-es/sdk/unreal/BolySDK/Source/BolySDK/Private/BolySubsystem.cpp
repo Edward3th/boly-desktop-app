@@ -274,6 +274,70 @@ FDateTime UBolySubsystem::GetServerNow() const
 	return ServerTimeAtSync + FTimespan::FromSeconds(FPlatformTime::Seconds() - PlatformSecondsAtSync);
 }
 
+FString UBolySubsystem::GetSaveLearnerFolder() const
+{
+	if (!bReady)
+	{
+		if (!bSaveNotReadyLogged)
+		{
+			bSaveNotReadyLogged = true;
+			UE_LOG(LogBoly, Error, TEXT("Espera a OnReady antes de leer o guardar la partida."));
+		}
+		return FString();
+	}
+	if (bEditorSession) return TEXT("editor");
+	FGuid Parsed;
+	if (FGuid::Parse(LearnerId, Parsed))
+	{
+		return Parsed.ToString(EGuidFormats::DigitsWithHyphens).ToLower();
+	}
+	if (!bSaveLearnerMissingLogged)
+	{
+		bSaveLearnerMissingLogged = true;
+		UE_LOG(LogBoly, Warning, TEXT("learner_id ausente o invalido; se usara _sin_alumno."));
+	}
+	return TEXT("_sin_alumno");
+}
+
+FString UBolySubsystem::GetSaveDirectory() const
+{
+	const FString Folder = GetSaveLearnerFolder();
+	if (Folder.IsEmpty()) return FString();
+	const FString Directory = FPaths::Combine(FPaths::ProjectSavedDir(), TEXT("Boly"), TEXT("Saves"), Folder);
+	if (!IFileManager::Get().MakeDirectory(*Directory, true))
+	{
+		UE_LOG(LogBoly, Error, TEXT("No se pudo crear la carpeta de guardado: %s"), *Directory);
+		return FString();
+	}
+	return Directory;
+}
+
+FString UBolySubsystem::GetSavePath(const FString& FileName) const
+{
+	const FString Directory = GetSaveDirectory();
+	if (Directory.IsEmpty()) return FString();
+	if (FileName.IsEmpty() || FileName == TEXT(".") || FileName == TEXT("..") ||
+		FileName.Contains(TEXT("/")) || FileName.Contains(TEXT("\\")) || FileName.Contains(TEXT(":")))
+	{
+		UE_LOG(LogBoly, Error, TEXT("GetSavePath necesita un nombre de archivo simple."));
+		return FString();
+	}
+	return FPaths::Combine(Directory, FileName);
+}
+
+FString UBolySubsystem::GetSaveSlotName(const FString& SlotName) const
+{
+	const FString Folder = GetSaveLearnerFolder();
+	if (Folder.IsEmpty()) return FString();
+	if (SlotName.IsEmpty() || SlotName == TEXT(".") || SlotName == TEXT("..") ||
+		SlotName.Contains(TEXT("/")) || SlotName.Contains(TEXT("\\")) || SlotName.Contains(TEXT(":")))
+	{
+		UE_LOG(LogBoly, Error, TEXT("GetSaveSlotName necesita un nombre de slot simple."));
+		return FString();
+	}
+	return TEXT("Boly_") + Folder + TEXT("_") + SlotName;
+}
+
 void UBolySubsystem::BecomeReady()
 {
 	if (bReady)

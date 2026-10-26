@@ -39,7 +39,7 @@ class BOLYSDK_API UBolySubsystem : public UGameInstanceSubsystem
 	GENERATED_BODY()
 
 public:
-	static constexpr const TCHAR* SdkVersion = TEXT("0.3.0");
+	static constexpr const TCHAR* SdkVersion = TEXT("0.4.0");
 
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
 	virtual void Deinitialize() override;
@@ -72,6 +72,19 @@ public:
 	// heartbeat. Antes del primero devuelve la hora local en UTC.
 	UFUNCTION(BlueprintPure, Category = "Boly")
 	FDateTime GetServerNow() const;
+
+	// Archivos propios del alumno en Saved/Boly/Saves/<learner_id>/.
+	// Devuelven vacio antes de OnReady. GetSavePath acepta un nombre simple.
+	UFUNCTION(BlueprintCallable, Category = "Boly|Saves")
+	FString GetSaveDirectory() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Boly|Saves")
+	FString GetSavePath(const FString& FileName) const;
+
+	// Para UGameplayStatics::SaveGameToSlot / LoadGameFromSlot: esos slots
+	// siempre viven en Saved/SaveGames, por eso se separan con un prefijo.
+	UFUNCTION(BlueprintCallable, Category = "Boly|Saves")
+	FString GetSaveSlotName(const FString& SlotName) const;
 
 	// Se dispara una vez, con el primer heartbeat valido. Si te suscribes
 	// tarde, revisa IsReady primero.
@@ -140,6 +153,8 @@ private:
 	bool bSubscriptionAccess = false;
 	bool bEditorSession = false;
 	bool bReady = false;
+	mutable bool bSaveNotReadyLogged = false;
+	mutable bool bSaveLearnerMissingLogged = false;
 	bool bFirstValidation = true;
 	bool bRequestInFlight = false;
 	bool bEnding = false;
@@ -196,4 +211,5 @@ private:
 	void ApplyResponse(const FString& Body);
 	void BecomeReady();
 	void EndSession(EBolyEndReason Reason);
+	FString GetSaveLearnerFolder() const;
 };

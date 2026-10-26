@@ -7,8 +7,10 @@
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
+const crypto = require('crypto')
 const { MockServer, VALIDATE_PATH } = require('./mock-server')
 const { makeKey, launchGame, waitForExit, killGame } = require('./runner')
+const saveScan = require('./save-scan')
 
 const ok200 = { status: 200, body: { state: true, subscriptionAccess: false } }
 const deny403 = { status: 403, body: { state: false, message: 'Invalid or superseded session' } }
@@ -548,6 +550,91 @@ async function scenarioManifest(ctx) {
   return result(title, checks, null)
 }
 
+// ── Scenario 8 ────────────────────────────────────────────────────────────
+// Watch writes for two distinct learners. A 403 ends each session gracefully
+// so games that save from OnSessionEnded get a chance to write their files.
+async function scenarioSaves(ctx) {
+  const title = 'Saved games — separate local data for two learners'
+  const roots = ctx.saveRoots || saveScan.rootsFor(ctx.gamePath)
+  const regKey = saveScan.unityRegistryKey(ctx.gamePath)
+  const learners = [crypto.randomUUID(), crypto.randomUUID()]
+  // Tests use bounded snapshots; a real user's AppData can be enormous, so
+  // capture changes recursively during each launch instead.
+  const useSnapshots = !!ctx.saveRoots
+  const first = useSnapshots ? saveScan.snapshot(roots) : null
+  const regFirst = saveScan.registrySnapshot(regKey)
+  const runs = []
+
+  for (const learnerId of learners) {
+    const watcher = useSnapshots ? null : saveScan.watchChanges(roots)
+    const server = new MockServer()
+    server.learnerId = learnerId
+    server.setResponder((i) => i === 0 ? ok200 : deny403)
+    const port = await server.start(ctx.port)
+    const { child, state } = launchGame({
+      gamePath: ctx.gamePath,
+      launcher: ctx.launcher,
+      gameId: ctx.gameId,
+      key: makeKey(),
+      port,
+      heartbeat: ctx.heartbeat,
+    })
+    await waitForExit(state, (ctx.intervalSec * 3 + 6) * 1000)
+    killGame(child)
+    await server.stop()
+    if (state.spawnError) {
+      if (watcher) watcher.close()
+      return fatalIfSpawnError(state, title)
+    }
+    if (watcher) await new Promise((resolve) => setTimeout(resolve, 150))
+    runs.push({ learnerId, beats: server.beats.length, sdk: server.beats[0]?.sdk || '', state,
+      files: useSnapshots ? saveScan.snapshot(roots) : watcher.close(),
+      registry: saveScan.registrySnapshot(regKey) })
+  }
+
+  const checks = []
+  const a = useSnapshots ? saveScan.changed(first, runs[0].files) : runs[0].files.files
+  const b = useSnapshots ? saveScan.changed(runs[0].files, runs[1].files) : runs[1].files.files
+  const aOutside = a.filter((p) => !saveScan.isSdkStorage(p))
+  const bOutside = b.filter((p) => !saveScan.isSdkStorage(p))
+  const inSaves = (p) => /[/\\](?:saves|boly_saves)[/\\]/i.test(p)
+  const wrongA = a.filter((p) => inSaves(p) && !saveScan.isLearnerSave(p, learners[0]))
+  const wrongB = b.filter((p) => inSaves(p) && !saveScan.isLearnerSave(p, learners[1]))
+  const regA = saveScan.registryChanged(regFirst, runs[0].registry)
+  const regB = saveScan.registryChanged(runs[0].registry, runs[1].registry)
+  // Unity itself persists display settings and its own session counters in
+  // PlayerPrefs. Those are engine state, not a game's per-player progress.
+  const unityOwned = /^(?:Screenmanager |UnitySelectMonitor_|unity\.player_|unity_connect\.)/i
+  // Read the final branch, not only values whose bytes changed: writing the
+  // same PlayerPrefs value again leaves reg query output unchanged.
+  const badReg = runs[1].registry.filter((s) => !/boly\./i.test(s) && !unityOwned.test(s))
+  const limits = (items) => items.slice(0, 20).join('\n        ') + (items.length > 20 ? `\n        ... and ${items.length - 20} more` : '')
+
+  if (runs.some((run) => run.beats < 2)) {
+    checks.push(check('Both sessions validated and ended on 403', 'warn',
+      `A: ${runs[0].beats} heartbeat(s); B: ${runs[1].beats} heartbeat(s). Save-on-exit may not have run.`))
+  } else {
+    checks.push(check('Both sessions validated and ended on 403', 'pass'))
+  }
+  if (a.length + b.length + regA.length + regB.length === 0) {
+    checks.push(check('Observed player data writes', 'warn',
+      'No files or PlayerPrefs changed. Play far enough to trigger a save, then run --only 8 again.'))
+  } else {
+    checks.push(check('Observed player data writes', 'pass', `${a.length} file(s) for A, ${b.length} for B`))
+  }
+  const outside = [...new Set([...aOutside, ...bOutside])]
+  checks.push(check('Files outside the Boly save area', outside.length ? 'warn' : 'pass',
+    outside.length ? limits(outside) : 'none observed'))
+  const wrong = [...new Set([...wrongA, ...wrongB])]
+  if (wrong.length) checks.push(check('Boly files outside the active learner folder', 'warn', limits(wrong)))
+  if (regKey) checks.push(check('Unity PlayerPrefs without boly.<learner_id>. prefix', badReg.length ? 'warn' : 'pass',
+    badReg.length ? limits(badReg) : 'none observed'))
+  if ((first && first.errors.length) || runs.some((run) => run.files.errors.length))
+    checks.push(check('Snapshot access', 'warn', 'Some directories could not be read; the scan may be incomplete.'))
+  // Storage findings are advisory: games also write graphics settings and logs.
+  return result(title, checks)
+}
+
 // Notice files (*.json) the game wrote, and how many .tmp files it left
 async function waitForNotices(dir, timeoutMs) {
   const deadline = Date.now() + timeoutMs
@@ -596,6 +683,7 @@ const SCENARIOS = [
   { id: 5, title: 'Missing -key → quit immediately, no heartbeat', run: scenarioMissingKey },
   { id: 6, title: 'Achievements — reported, retried, never counted twice', run: scenarioAchievements },
   { id: 7, title: 'Achievement manifest — boly/achievements.json', run: scenarioManifest },
+  { id: 8, title: 'Saved games — separate local data for two learners', run: scenarioSaves },
 ]
 
 module.exports = { SCENARIOS }

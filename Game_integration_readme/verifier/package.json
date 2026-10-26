@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node verify.js",
     "build:bin": "npx -y pkg@5.8.1 verify.js --targets node18-win-x64 --out-path dist && npm run build:rename",
-    "build:rename": "cd dist && mv -f verify.exe boly-verify-win.exe"
+    "build:rename": "node -e \"const fs=require('node:fs');fs.rmSync('dist/boly-verify-win.exe',{force:true});fs.renameSync('dist/verify.exe','dist/boly-verify-win.exe')\""
   },
   "engines": {
     "node": ">=18"

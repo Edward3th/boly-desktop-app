@@ -42,6 +42,16 @@ En Blueprint: **Get Game Instance Subsystem (Boly Subsystem)** ▸ *Is Ready*,
 | `GetGameId()`, `GetSessionId()`, `GetLearnerId()`, `HasSubscriptionAccess()`, `IsEditorSession()` | Datos de la sesión. |
 | `GetServerNow()` | Hora del servidor (UTC). |
 
+## Guardar la partida por alumno (SDK 0.4+)
+
+Después de `OnReady`, usa `GetSaveDirectory()` o
+`GetSavePath(TEXT("partida.json"))` para archivos propios. Para
+`SaveGameToSlot` y `LoadGameFromSlot`, pasa el resultado de
+`GetSaveSlotName(TEXT("Slot1"))`, también disponible en Blueprint. Los slots
+quedan en `Saved/SaveGames` con prefijo por alumno. Antes de `OnReady` se
+devuelve vacío; editor usa `editor` y un `learner_id` ausente usa `_sin_alumno`.
+Las partidas anteriores quedan intactas. Ver `BOLY_SDK.md` §9.
+
 ## Logros (SDK 0.2+)
 
 1. Define los logros en **boly.cl ▸ Panel de desarrollador ▸ tu juego ▸

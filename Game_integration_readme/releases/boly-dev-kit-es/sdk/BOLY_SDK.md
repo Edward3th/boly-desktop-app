@@ -1,4 +1,6 @@
-# Boly SDK 0.3.0 — referencia para integrar con IA
+# Boly SDK — referencia para integrar con IA
+
+Los cuatro motores están en 0.4.0.
 
 Referencia completa del SDK de Boly para un asistente de IA (Claude Code,
 Cursor, Copilot, etc.) que trabaja **dentro del proyecto de un juego** en
@@ -101,7 +103,7 @@ integración antigua (`ParamsCatcher`) y no está claro el flujo de escenas.
 
 | Motor | Versión mínima | Formato | Carpeta en el kit | Estado |
 |---|---|---|---|---|
-| Unity | 2021.3 LTS | Paquete UPM `cl.boly.sdk` | `sdk/unity/cl.boly.sdk/` | Verificado (build pasa los 6 escenarios) |
+| Unity | 2021.3 LTS | Paquete UPM `cl.boly.sdk` | `sdk/unity/cl.boly.sdk/` | 0.4.0 probado en Unity 2021.3.40f1 y 6000 |
 | Godot | 4.0 (GDScript) | Addon + autoload `Boly` | `sdk/godot/addons/boly_sdk/` | Sin probar en el motor |
 | Unreal | 5.0 | Plugin C++/Blueprint `BolySDK` | `sdk/unreal/BolySDK/` | Sin compilar |
 | GameMaker | runtime 2024 | Script `boly_sdk` + objeto `obj_boly` | `sdk/gamemaker/` | Sin probar en el motor |
@@ -292,7 +294,7 @@ desbloqueado!", nombre y un sonido corto. El juego no tiene que dibujar nada.
 
 | Miembro | Tipo | Descripción |
 |---|---|---|
-| `BolySDK.Version` | `const string` | `"0.3.0"` |
+| `BolySDK.Version` | `const string` | `"0.4.0"` |
 | `BolySDK.IsReady` | `bool` | Sesión validada (en el editor, de inmediato). |
 | `BolySDK.OnReady` | `event Action` | Una vez, con el primer heartbeat válido. Si te suscribes tarde no se dispara: revisa `IsReady` antes. |
 | `BolySDK.OnSessionEnded` | `event Action<BolyEndReason>` | Justo antes de cerrar el juego. |
@@ -392,7 +394,7 @@ pausa) y sobrevive a `change_scene_to_file()`.
 
 | Miembro | Tipo | Descripción |
 |---|---|---|
-| `Boly.VERSION` | `const String` | `"0.3.1"` (los demás motores siguen en 0.3.0) |
+| `Boly.VERSION` | `const String` | `"0.4.0"` |
 | `Boly.is_ready` | `bool` | Sesión validada (en el editor, en el frame siguiente al arranque). |
 | `Boly.session_ready` | `signal` | Una vez. Si conectas tarde, revisa `is_ready` antes. |
 | `Boly.session_ended(reason: EndReason)` | `signal` | Justo antes de cerrar. |
@@ -580,7 +582,7 @@ listo y pide a la persona que haga estos pasos en el IDE.
 
 | Función | Retorna | Descripción |
 |---|---|---|
-| `BOLY_VERSION` | macro | `"0.3.0"` |
+| `BOLY_VERSION` | macro | `"0.4.0"` |
 | `boly_is_ready()` | `bool` | Sesión validada (desde el IDE, de inmediato). |
 | `boly_on_ready(cb)` | — | `cb()` cuando quede lista; si ya lo está, la llama al tiro. |
 | `boly_on_session_ended(cb)` | — | `cb(reason)` justo antes de cerrar. |
@@ -710,6 +712,8 @@ servidor local). No los uses en el juego.
 - [ ] Integración antigua (`ParamsCatcher`) eliminada, flujo de escenas intacto.
 - [ ] El gameplay empieza con `IsReady` / `OnReady`.
 - [ ] El progreso se guarda en `OnSessionEnded` (si el juego guarda algo).
+- [ ] La partida se carga despues de `OnReady` y todos los datos del jugador
+      usan la ruta o las preferencias por alumno del SDK (§9).
 - [ ] Sin `-token`, sin `Authorization`, sin id de juego fijo, sin HTTP propio a Boly.
 - [ ] Logros: constantes del motor (de boly.cl o generadas desde
       `boly/achievements.json`), llamadas en los eventos correctos, popup en
@@ -720,3 +724,113 @@ servidor local). No los uses en el juego.
 - [ ] Build de Windows compilado y verificador con todos los escenarios en PASS.
 - [ ] Informe a la persona: archivos cambiados, ruta del `.exe`, resultado del
       verificador y los `api_name` conectados. La subida a boly.cl la hace ella.
+
+## 9. Guardar la partida (SDK 0.4+)
+
+En un PC compartido, varias cuentas de Boly usan la misma cuenta de Windows.
+Por eso **todo dato propio del jugador** debe ir a la carpeta que entrega el
+SDK. Carga la partida después de `OnReady` y guárdala al cerrar normalmente y
+en `OnSessionEnded`. Antes de `OnReady` las funciones devuelven vacío y no
+escriben. El primer acceso crea la carpeta.
+
+| Motor | Carpeta | Obtener archivo |
+|---|---|---|
+| Unity | `persistentDataPath/boly/saves/<alumno>/` | `BolySDK.Saves.PathFor("partida.json")` |
+| Godot | `user://boly/saves/<alumno>/` | `Boly.save_path("partida.save")` |
+| Unreal | `Saved/Boly/Saves/<alumno>/` | `Boly->GetSavePath(TEXT("partida.json"))` |
+| GameMaker | `boly_saves/<alumno>/` | `boly_save_path("partida.ini")` |
+
+`<alumno>` es el `learner_id` estable del primer heartbeat. En el editor es
+`editor`; si falta o es inválido es `_sin_alumno` con una advertencia. Las
+partidas antiguas compartidas permanecen donde están y el SDK no las lee ni
+las mueve automáticamente. Así se empieza de cero al actualizar. Si un juego
+necesita recuperar una partida antigua, el desarrollador debe decidir a qué
+alumno pertenece antes de copiarla; en un PC escolar no se puede deducir.
+Unity ofrece `BolySDK.Saves.ClaimLegacy(rutaAntigua)` como opción explícita
+para copiar una vez un archivo o carpeta antigua bajo `persistentDataPath` a
+la carpeta del alumno actual. Devuelve `false` si ya fue reclamada, si el
+destino existe o si no se pudo copiar. El original permanece intacto.
+La partida queda en este PC; el SDK aún no sincroniza partidas en la nube.
+
+### Unity
+
+```csharp
+void Empezar()
+{
+    var archivo = BolySDK.Saves.PathFor("partida.json");
+    if (archivo != null && System.IO.File.Exists(archivo))
+        Cargar(System.IO.File.ReadAllText(archivo));
+}
+
+void Guardar()
+{
+    var archivo = BolySDK.Saves.PathFor("partida.json");
+    if (archivo != null) System.IO.File.WriteAllText(archivo, Serializar());
+}
+
+void Awake()
+{
+    if (BolySDK.IsReady) Empezar(); else BolySDK.OnReady += Empezar;
+    BolySDK.OnSessionEnded += _ => Guardar();
+}
+```
+
+Si el juego usa `PlayerPrefs`, reemplaza **todas** las llamadas por
+`BolySDK.Prefs` (`Get/SetInt`, `Get/SetFloat`, `Get/SetString`, `HasKey`,
+`DeleteKey`, `DeleteAll`, `Save`). Las claves quedan como
+`boly.<learner_id>.<clave>`. `DeleteAll` borra solo las claves de ese alumno.
+Antes de `OnReady`, `Get*` entrega el valor por defecto y `Set*` no escribe.
+Para Easy Save 3, pasa al asset una ruta del alumno, por ejemplo
+`new ES3Settings(BolySDK.Saves.PathFor("partida.es3"))` para las llamadas
+`ES3.Save` y `ES3.Load`. Hazlo después de `OnReady` y revisa que el asset no
+escriba además en su ruta predeterminada.
+
+### Godot
+
+```gdscript
+func _ready() -> void:
+    if Boly.is_ready: cargar()
+    else: Boly.session_ready.connect(cargar)
+    Boly.session_ended.connect(func(_razon): guardar())
+
+func guardar() -> void:
+    var ruta := Boly.save_path("partida.save")
+    if ruta != "":
+        var archivo := FileAccess.open(ruta, FileAccess.WRITE)
+        if archivo != null: archivo.store_string(JSON.stringify(partida))
+```
+
+`ConfigFile.save` y `ConfigFile.load` también aceptan `Boly.save_path(...)`.
+
+### Unreal
+
+```cpp
+UBolySubsystem* Boly = GetGameInstance()->GetSubsystem<UBolySubsystem>();
+const FString Path = Boly->GetSavePath(TEXT("partida.json"));
+const FString Slot = Boly->GetSaveSlotName(TEXT("Slot1"));
+// Slot se pasa a SaveGameToSlot y LoadGameFromSlot (UserIndex = 0).
+```
+
+En Blueprint, desde **Get Game Instance Subsystem → Boly Subsystem** usa
+`Get Save Directory`, `Get Save Path` o `Get Save Slot Name`. Los slots de
+`SaveGameToSlot` viven en `Saved/SaveGames`; el último método los separa con
+`Boly_<learner_id>_`.
+
+### GameMaker
+
+```gml
+boly_on_ready(function() {
+    var _ruta = boly_save_path("partida.ini");
+    if (_ruta != "" && file_exists(_ruta)) { /* cargar */ }
+});
+boly_on_session_ended(function(_razon) {
+    var _ruta = boly_save_path("partida.ini");
+    if (_ruta != "") { /* guardar */ }
+});
+```
+
+`boly_save_path` entrega un nombre dentro del área de guardado del juego;
+úsalo con `ini_open`, `file_text_open_*` y cualquier extensión de guardado.
+Con el sandbox activo, comprueba en el runtime que `directory_create` permita
+crear `boly_saves/<alumno>/`. El aviso de logros de la app sigue requiriendo
+desactivar el sandbox.

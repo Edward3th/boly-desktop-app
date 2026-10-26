@@ -30,7 +30,7 @@ signal achievement_unlocked(api_name: String, current: int, target: int)
 ## Llego el estado de los logros desde el servidor, al iniciar la sesion.
 signal achievements_synced
 
-const VERSION := "0.3.1"
+const VERSION := "0.4.0"
 ## Escena que se carga cuando la sesion queda lista ("" = ninguna). Equivale al
 ## flujo AuthScene -> MainGame del ParamsCatcher.
 const SETTING_SCENE_ON_READY := "boly/scene_on_ready"
@@ -55,6 +55,9 @@ var learner_id := ""
 var subscription_access := false
 ## true al correr en el editor sin -key: sin red ni sesion real.
 var is_editor := false
+var _save_not_ready_logged := false
+var _save_learner_missing_logged := false
+var _learner_uuid_re := RegEx.create_from_string("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 ## true cuando ya llego el estado de los logros desde el servidor.
 var achievements_in_sync := false
 
@@ -138,6 +141,39 @@ func server_now_unix() -> float:
 	if _server_unix_at_sync < 0.0:
 		return Time.get_unix_time_from_system()
 	return _server_unix_at_sync + (Time.get_ticks_msec() - _ticks_at_sync) / 1000.0
+
+
+## Carpeta de la partida del alumno. Se crea al primer acceso, despues de
+## session_ready. Vacia si todavia no hay sesion valida.
+func save_dir() -> String:
+	if not is_ready:
+		if not _save_not_ready_logged:
+			_save_not_ready_logged = true
+			push_error("[Boly] Espera a session_ready antes de leer o guardar la partida.")
+		return ""
+	var folder := "editor" if is_editor else learner_id.to_lower()
+	if not is_editor and _learner_uuid_re.search(learner_id) == null:
+		folder = "_sin_alumno"
+		if not _save_learner_missing_logged:
+			_save_learner_missing_logged = true
+			push_warning("[Boly] learner_id ausente o invalido; se usara _sin_alumno.")
+	var result := "user://boly/saves/" + folder
+	if DirAccess.make_dir_recursive_absolute(result) != OK:
+		push_error("[Boly] No se pudo crear la carpeta de guardado: " + result)
+		return ""
+	return result
+
+
+## Devuelve un archivo dentro de la carpeta del alumno. Solo acepta un nombre
+## simple para impedir que un ../ salga de ella.
+func save_path(file_name: String) -> String:
+	var folder := save_dir()
+	if folder == "":
+		return ""
+	if file_name == "" or file_name == "." or file_name == ".." or "/" in file_name or "\\" in file_name or ":" in file_name:
+		push_error("[Boly] save_path necesita un nombre de archivo simple.")
+		return ""
+	return folder.path_join(file_name)
 
 
 # ── Logros (spec/PROTOCOL.md §5) ────────────────────────────────────────────

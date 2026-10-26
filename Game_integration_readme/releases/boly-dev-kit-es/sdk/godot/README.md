@@ -1,6 +1,6 @@
 # Boly SDK — Godot 4
 
-Addon `addons/boly_sdk`. Godot 4.x (GDScript). Versión 0.3.1: qué cambió respecto de 0.3.0 en [`CAMBIOS_0.3.1.md`](CAMBIOS_0.3.1.md).
+Addon `addons/boly_sdk`. Godot 4.x (GDScript). Versión 0.4.0; historial de 0.3.1 en [`CAMBIOS_0.3.1.md`](CAMBIOS_0.3.1.md).
 
 > **Estado:** escrito siguiendo el ParamsCatcher de Godot, pero aún no
 > probado en el motor. Pruébalo con el verifier antes de usarlo en un juego.
@@ -38,6 +38,14 @@ func _ready():
 | `Boly.session_ended(reason)` | Justo antes de cerrar: `Boly.EndReason.MISSING_KEY`, `REJECTED`, `UNREACHABLE`. |
 | `Boly.game_id`, `session_id`, `learner_id`, `subscription_access`, `is_editor` | Datos de la sesión. |
 | `Boly.server_now_unix()` | Hora del servidor en segundos Unix (UTC). |
+
+## Guardar la partida por alumno (SDK 0.4+)
+
+Espera a `Boly.session_ready` antes de cargar. Usa `Boly.save_dir()` o
+`Boly.save_path("partida.save")` para archivos y `ConfigFile`. El SDK crea
+`user://boly/saves/<alumno>/` al primer acceso. Antes de estar listo devuelve
+`""`; en el editor usa `editor` y sin `learner_id` usa `_sin_alumno`.
+Las partidas anteriores quedan intactas. Ver `BOLY_SDK.md` §9.
 
 ## Logros (SDK 0.2+)
 

@@ -18,6 +18,7 @@ del kit. Síguelo en orden.
 | `sdk/gamemaker/` | SDK para GameMaker 2024+ (código GML) |
 | `sdk/BOLY_SDK.md` | Referencia completa del SDK (API de los 4 motores, logros, reglas): **léela antes de empezar** |
 | `LOGROS.md` | Guía paso a paso de logros (boly.cl o `boly/achievements.json` en la build) |
+| `GUARDADO.md` | Guía para separar partidas por alumno en equipos compartidos |
 | `sdk/<motor>/README.md` | Instalación y API de cada motor (resumen) |
 | `boly-verify-win.exe` | Verificador: prueba el build contra un servidor Boly simulado |
 | `index.html` | La misma guía para humanos |
@@ -140,6 +141,26 @@ guarde cuando termine (el SDK cierra el juego justo después):
 Comprueba que el proyecto compila dentro del editor (Unity/Godot: sin errores
 en consola; Unreal: compila el módulo) antes de seguir.
 
+## Paso 2a: separar el guardado por alumno
+
+Lee `<KIT>/GUARDADO.md` y `sdk/BOLY_SDK.md` §9. Busca todos los puntos donde
+el juego carga o guarda progreso, ajustes propios del jugador y archivos de
+assets de guardado. Carga solo después de `OnReady` y usa la ruta del SDK:
+
+| Motor | Archivos | Otros guardados |
+|---|---|---|
+| Unity | `BolySDK.Saves.PathFor(nombre)` | `BolySDK.Prefs` en vez de `PlayerPrefs` |
+| Godot | `Boly.save_path(nombre)` | ConfigFile y assets apuntan a esa ruta |
+| Unreal | `GetSavePath(nombre)` | `GetSaveSlotName(nombre)` para SaveGameToSlot |
+| GameMaker | `boly_save_path(nombre)` | Pasar la ruta a `ini_open` y funciones de archivo |
+
+Nunca uses `Application.persistentDataPath`, `user://`, `PlayerPrefs`, el área
+de guardado predeterminada ni nombres de slot directos para **datos del
+jugador**. Si el juego ya tiene una partida compartida, déjala intacta; no
+atribuyas su dueño sin una decisión de la persona. Comprueba con dos sesiones
+del verificador (`--only 8`) y revisa sus WARN: configuración de video y logs
+pueden ser legítimos, pero el progreso debe quedar separado.
+
 ## Paso 2b: logros (opcional)
 
 Solo si la persona quiere logros. Lee primero `<KIT>/LOGROS.md`: es la guía
@@ -217,11 +238,12 @@ Desde la carpeta del kit (PowerShell):
 - Tarda ~1-2 minutos. El juego se abre y se cierra varias veces: es normal.
 - El código de salida es `0` solo si todo pasa. Con `--json`, revisa `passed` y
   cada `checks[].status` (`pass`, `fail`, `warn`).
-- Los 7 escenarios: sesión válida, 403 → cerrar, un fallo de red tolerado, fallos
+- Los 8 escenarios: sesión válida, 403 → cerrar, un fallo de red tolerado, fallos
   repetidos → cerrar, sin `-key` → cerrar sin enviar nada, logros (el
   verificador desbloquea un logro de prueba y comprueba el reintento; no hay que
   programar nada para eso) y el manifiesto `boly/achievements.json` junto al
-  `.exe` (se marca SKIP si el juego no declara sus logros en la build). Un
+  `.exe` (se marca SKIP si el juego no declara sus logros en la build), y
+  guardado por alumno (WARN para rutas que requieren revisión). Un
   `WARN` en el escenario 6 indica un SDK anterior sin logros: vuelve a copiar
   el SDK del kit.
 
@@ -237,6 +259,7 @@ Desde la carpeta del kit (PowerShell):
 | FAIL "Notifies the Boly app of the unlock" | SDK modificado; en GameMaker, el sandbox de archivos activo | Copia el SDK sin cambios; en GameMaker desactiva el sandbox (Paso 1) |
 | FAIL en "Achievement manifest" | `boly/achievements.json` con errores | Corrige cada error en el campo que indica (`achievements[2].target`, etc.) |
 | WARN `icon_missing` | Ruta o mayúsculas distintas | Usa el nombre exacto del archivo; el mensaje sugiere el correcto |
+| WARN en "Saved games" | Se detectó escritura fuera de la carpeta del alumno | Revisa las rutas: mueve el progreso del jugador a la ruta del SDK; logs y video pueden quedar fuera |
 | FAIL en un motor nuevo (Godot, Unreal, GameMaker) que no se explica por lo anterior | Posible error del SDK | No lo parches: reporta a la persona la salida del verificador para enviarla a Boly |
 
 Corrige, vuelve a compilar y repite hasta que pase todo.
@@ -264,7 +287,7 @@ Termina con un resumen para la persona:
 - motor y versión, y qué integración antigua quitaste (si había),
 - archivos que agregaste o cambiaste,
 - dónde quedó el `.exe` (y el zip, si lo creaste),
-- el resultado del verificador (los 7 escenarios),
+- el resultado del verificador (los 8 escenarios),
 - los logros que conectaste (si hubo), con el `api_name` de cada uno, y si van
   en `boly/achievements.json` o se crean en boly.cl,
 - lo que falta: subir el build en **boly.cl ▸ Panel de Desarrollador** (lo hace la persona).

@@ -8,7 +8,7 @@
 //   boly_on_session_ended(function(_razon) { guardar_partida(); });
 //   boly_achievement_unlock(BOLY_ACH_NIVEL_5_COMPLETO);
 
-#macro BOLY_VERSION "0.3.0"
+#macro BOLY_VERSION "0.4.0"
 
 // Por que termino la sesion. El SDK cierra el juego justo despues de avisar.
 enum BOLY_END_REASON {
@@ -25,6 +25,8 @@ global.__boly = {
     learner_id: "",
     subscription_access: false,
     is_editor: false,
+    save_not_ready_logged: false,
+    save_learner_missing_logged: false,
     on_ready: [],
     on_session_ended: [],
     server_unix_at_sync: -1,
@@ -99,6 +101,66 @@ function boly_server_now() {
         return _now;
     }
     return _b.server_unix_at_sync + (current_time - _b.ms_at_sync) / 1000;
+}
+
+// Verifica el UUID antes de usarlo como nombre de carpeta. Un valor externo
+// nunca debe poder salir del area de guardado mediante ../ o separadores.
+function __boly_valid_learner_id(_id) {
+    if (!is_string(_id) || string_length(_id) != 36) return false;
+    for (var _i = 1; _i <= 36; _i++) {
+        var _c = string_lower(string_char_at(_id, _i));
+        if (_i == 9 || _i == 14 || _i == 19 || _i == 24) {
+            if (_c != "-") return false;
+        } else if (string_pos(_c, "0123456789abcdef") == 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Carpeta de la partida de este alumno, relativa al area de guardado del
+// juego. Se crea al primer acceso despues de boly_on_ready.
+function boly_save_dir() {
+    var _b = global.__boly;
+    if (!_b.ready) {
+        if (!_b.save_not_ready_logged) {
+            _b.save_not_ready_logged = true;
+            show_debug_message("[Boly] ERROR: espera a boly_on_ready antes de leer o guardar la partida.");
+        }
+        return "";
+    }
+    var _folder = "editor";
+    if (!_b.is_editor) {
+        _folder = string_lower(_b.learner_id);
+        if (!__boly_valid_learner_id(_folder)) {
+            _folder = "_sin_alumno";
+            if (!_b.save_learner_missing_logged) {
+                _b.save_learner_missing_logged = true;
+                show_debug_message("[Boly] WARN: learner_id ausente o invalido; se usara _sin_alumno.");
+            }
+        }
+    }
+    if (!directory_exists("boly_saves")) directory_create("boly_saves");
+    var _dir = "boly_saves/" + _folder;
+    if (!directory_exists(_dir)) directory_create(_dir);
+    if (!directory_exists(_dir)) {
+        show_debug_message("[Boly] ERROR: no se pudo crear la carpeta de guardado " + _dir);
+        return "";
+    }
+    return _dir + "/";
+}
+
+// Solo acepta un nombre simple para impedir salir de la carpeta del alumno.
+function boly_save_path(_file_name) {
+    var _dir = boly_save_dir();
+    if (_dir == "") return "";
+    if (!is_string(_file_name) || _file_name == "" || _file_name == "." || _file_name == ".."
+        || string_pos("/", _file_name) > 0 || string_pos("\\", _file_name) > 0
+        || string_pos(":", _file_name) > 0) {
+        show_debug_message("[Boly] ERROR: boly_save_path necesita un nombre de archivo simple.");
+        return "";
+    }
+    return _dir + _file_name;
 }
 
 // ── Internas (las usa obj_boly) ────────────────────────────────────────────

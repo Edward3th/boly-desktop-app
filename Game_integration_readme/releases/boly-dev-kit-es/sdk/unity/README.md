@@ -48,6 +48,15 @@ void Awake()
 | `BolySDK.Session` | `GameId`, `SessionId`, `LearnerId`, `SubscriptionAccess`, `IsEditor`. |
 | `BolySDK.ServerNow` | Hora del servidor (UTC). |
 
+## Guardar la partida por alumno (SDK 0.4+)
+
+Espera a `BolySDK.OnReady` antes de cargar. Guarda tus archivos en
+`BolySDK.Saves.Directory` o usa `BolySDK.Saves.PathFor("partida.json")`.
+Reemplaza `PlayerPrefs` por `BolySDK.Prefs` para enteros, floats y cadenas;
+`DeleteAll` solo borra las claves del alumno actual. Al cerrar, sigue usando
+`OnSessionEnded`. Sin `learner_id` se usa `_sin_alumno` y en el editor `editor`.
+Las partidas anteriores quedan intactas. Detalles y Easy Save: `BOLY_SDK.md` §9.
+
 ## Logros (SDK 0.2+)
 
 1. Define los logros en **boly.cl ▸ Panel de desarrollador ▸ tu juego ▸

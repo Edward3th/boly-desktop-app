@@ -285,6 +285,8 @@
       <li data-lang="es">El <b>SDK de Boly</b> para tu motor, en la carpeta <b>sdk/</b>: se encarga de la sesión de licencia por ti.</li>
       <li data-lang="en"><b>boly-verify-win.exe</b> — the verifier that tests your build (run it from this folder).</li>
       <li data-lang="es"><b>boly-verify-win.exe</b>: el verificador que prueba tu build (ejecútalo desde esta carpeta).</li>
+      <li data-lang="en"><b>GUARDADO.md</b> explains how to keep each learner's saved game separate on a shared PC.</li>
+      <li data-lang="es"><b>GUARDADO.md</b> explica cómo separar la partida de cada alumno en un PC compartido.</li>
     </ul>
   </div>
 
@@ -485,6 +487,16 @@ Si el proyecto tiene un obj_params_catcher antiguo, bórralo.</span><button clas
            ready, and save progress when the session ends (the SDK closes the game right after that).</p>
         <p data-lang="es">El SDK valida la sesión en segundo plano mientras el juego abre. Empieza el gameplay cuando
            esté lista, y guarda el progreso cuando la sesión termine (el SDK cierra el juego justo después).</p>
+        <p data-lang="en"><b>Saved games:</b> load only after the session is ready and store player data in the SDK's
+           per-learner path. Unity: <code>BolySDK.Saves.PathFor("save.json")</code> and <code>BolySDK.Prefs</code>;
+           Godot: <code>Boly.save_path("save.dat")</code>; Unreal: <code>GetSavePath</code> or
+           <code>GetSaveSlotName</code>; GameMaker: <code>boly_save_path("save.ini")</code>.
+           See <a href="GUARDADO.md">GUARDADO.md</a>.</p>
+        <p data-lang="es"><b>Partidas guardadas:</b> carga solo cuando la sesión esté lista y guarda los datos del
+           jugador en la ruta por alumno del SDK. Unity: <code>BolySDK.Saves.PathFor("partida.json")</code> y
+           <code>BolySDK.Prefs</code>; Godot: <code>Boly.save_path("partida.save")</code>; Unreal:
+           <code>GetSavePath</code> o <code>GetSaveSlotName</code>; GameMaker:
+           <code>boly_save_path("partida.ini")</code>. Lee <a href="GUARDADO.md">GUARDADO.md</a>.</p>
         <div class="engine-only show" data-engine="unity">
 <div class="code">using Boly;
 

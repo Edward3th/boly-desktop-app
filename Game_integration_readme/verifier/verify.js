@@ -106,6 +106,7 @@ Scenarios:
   5  Missing -key → quit immediately, no heartbeat
   6  Achievements — reported, retried, never counted twice
   7  boly/achievements.json next to the executable (if the build declares achievements)
+  8  Saved games — inspect writes after running as two learners (WARN only)
 
 Exit code is 0 only if every selected scenario passes.
 

@@ -39,6 +39,15 @@ boly_on_session_ended(function(_razon) { guardar_partida(); });
 | `boly_game_id()`, `boly_session_id()`, `boly_learner_id()`, `boly_has_subscription_access()`, `boly_is_editor()` | Datos de la sesión. |
 | `boly_server_now()` | Hora del servidor en segundos Unix (UTC). |
 
+## Guardar la partida por alumno (SDK 0.4+)
+
+Dentro de `boly_on_ready`, usa `boly_save_dir()` o
+`boly_save_path("partida.ini")` con `ini_open` y las funciones de archivo.
+Se crea `boly_saves/<alumno>/` en el área de guardado; antes de estar listo
+se devuelve `""`. Desde el IDE usa `editor`; sin `learner_id` se usa
+`_sin_alumno`. Las partidas anteriores quedan intactas. Comprueba la creación
+de carpetas con el sandbox de tu runtime; ver `BOLY_SDK.md` §9.
+
 ## Logros (SDK 0.2+)
 
 1. Define los logros en **boly.cl ▸ Panel de desarrollador ▸ tu juego ▸

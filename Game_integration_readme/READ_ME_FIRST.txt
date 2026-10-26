@@ -23,6 +23,9 @@ BOLY - KIT DE INTEGRACION DE JUEGOS
    LOGROS.md  (definirlos en boly.cl o en un archivo boly/achievements.json
    dentro de la build, probarlos y publicarlos).
 
+   GUARDADO.md explica como separar la partida de cada alumno en un PC
+   compartido. Requiere Boly SDK 0.4 y cambiar el codigo de guardado del juego.
+
 6. No hay que configurar ningun id de juego: Boly lo asigna cuando se crea tu
    juego y el launcher se lo pasa al ejecutable al arrancar.
 
