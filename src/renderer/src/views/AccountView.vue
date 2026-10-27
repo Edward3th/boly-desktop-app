@@ -335,7 +335,7 @@ const sendVerification = async () => {
           </p>
           <br />
           <p class="title-bold">{{ $t('role') }}</p>
-          <p class="role-id">{{ $t(String(user.roleId)) }}</p>
+          <p class="role-id">{{ $t('role_' + user.roleId) }}</p>
           <p class="title-bold">{{ $t('birthday') }}</p>
           <p>{{ user.birthday }}</p>
           <p class="title-bold">{{ $t('bio') }}</p>
