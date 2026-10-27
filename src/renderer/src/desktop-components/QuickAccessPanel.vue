@@ -20,7 +20,7 @@ import { useI18n } from 'vue-i18n'
 import { storeToRefs } from 'pinia'
 import axios from 'axios'
 import { useAuth, useUser, useCodes, useGames, useSubscription, useDownloadStore } from '@/stores'
-import useGameRoutes from '@/desktop-stores/gameRoutes'
+import useGameRoutes, { buildNeedsUpdate } from '@/desktop-stores/gameRoutes'
 import GamepadIcon from '@/components/icons/GamepadIcon.vue'
 import KingIcon from '@/components/icons/KingIcon.vue'
 import PercentageIcon from '@/components/icons/PercentageIcon.vue'
@@ -178,9 +178,17 @@ async function playResumeGame() {
     return
   }
 
+  // A newer build is out (or the one on disk is unknown): updating happens in
+  // the library, which replaces the old build — never launch the stale one.
+  const route = gameRoutesStore.getRouteItems.find((item) => item.gameId === game.game_id)
+  if (buildNeedsUpdate(route?.buildKey, game.file_name?.desktop)) {
+    emit('notify', i18n.t('home_quick_update_required'))
+    router.push('/library')
+    return
+  }
+
   isLaunching.value = true
   try {
-    const route = gameRoutesStore.getRouteItems.find((item) => item.gameId === game.game_id)
     const result = await window.electronAPI.playGame({
       game_id: game.game_id,
       appPath: route?.route ?? game.game_Path,

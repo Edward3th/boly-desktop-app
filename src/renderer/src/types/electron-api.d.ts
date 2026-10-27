@@ -30,7 +30,18 @@ interface ElectronAPIExtended {
   /** Closes the open game (native or browser-style) and records its final playtime. */
   endGameSession: () => Promise<void>
   isGameRunning: (gameId: number) => Promise<boolean>
-  downloadGame: (appData: { game_id: number; token: string; gameName: string; build_id?: number }) => Promise<void>
+  /**
+   * buildKey is recorded in the install folder; previousRoot is the folder of
+   * the build being replaced, deleted once the new one is in place.
+   */
+  downloadGame: (appData: {
+    game_id: number
+    token: string
+    gameName: string
+    build_id?: number
+    buildKey?: string
+    previousRoot?: string
+  }) => Promise<void>
 
   // Custom title-bar window controls
   windowMinimize: () => Promise<void>
@@ -44,7 +55,7 @@ interface ElectronAPIExtended {
    * or its index.html) — how the library tells which installs are on disk.
    */
   listLibraryFolders: () => Promise<{
-    folders?: { name: string; root: string; entry: string; kind: 'exe' | 'html' }[]
+    folders?: { name: string; root: string; entry: string; kind: 'exe' | 'html'; buildKey?: string }[]
     error?: string
   }>
   updateMessage: (callback: (message: string) => void) => void

@@ -46,6 +46,19 @@ export interface LocalUninstaller {
 // qualifies; html entries always did.
 const isRecordedInstall = (game: LocalGame) => Boolean(game.root) || game.kind === 'html'
 
+/**
+ * Whether an installed game must be updated before it can be played: its
+ * approved build is not the one on disk. A downloadable build that isn't
+ * known to be on disk (an install from before builds were recorded) counts as
+ * outdated too — the player re-downloads it once and it's tracked from then
+ * on. Legacy embedded games (a Vue route, not a storage key) never update.
+ */
+export const buildNeedsUpdate = (installedKey?: string, currentKey?: string | null): boolean =>
+  typeof currentKey === 'string' &&
+  currentKey !== '' &&
+  !currentKey.startsWith('/') &&
+  installedKey !== currentKey
+
 // The folder InstallerService.downloadTempFile extracts a game into, named
 // after the game in whatever language the app was in at the time — keep the
 // two in step.
@@ -115,6 +128,11 @@ const useGameRoutes = defineStore('gameRoutes', {
       buildKey?: string
     }) {
       this.localGames = [...this.localGames.filter((g) => g.gameId !== game.gameId), game]
+      // An uninstaller left over from the build this one replaced points into
+      // a folder that's gone (or is about to be).
+      this.localUninstallers = this.localUninstallers.filter(
+        (u) => u.gameId !== game.gameId || (game.root !== undefined && isInside(u.route, game.root))
+      )
       this.saveToLocalStorage()
     },
 
@@ -188,8 +206,9 @@ const useGameRoutes = defineStore('gameRoutes', {
     // ones whose folder is gone (deleted by hand, say), and recover installs
     // there's no record of by the folder downloadTempFile named after the
     // game. The latter covers zip builds installed while clearRoute() still
-    // dropped them, so those come back without another download; they carry
-    // no buildKey, so they don't claim an update either way.
+    // dropped them, so those come back without another download. Either way
+    // the build comes from the folder's marker; a folder without one predates
+    // it, and buildNeedsUpdate() treats that install as outdated.
     async syncWithLibraryFolders() {
       const result = await window.electronAPI.listLibraryFolders()
       if (!result.folders) {
@@ -209,10 +228,15 @@ const useGameRoutes = defineStore('gameRoutes', {
       }
 
       for (const folder of folders) {
-        const claimed = this.localGames.some((game) =>
+        const claimants = this.localGames.filter((game) =>
           game.root ? samePath(game.root, folder.root) : isInside(game.route, folder.root)
         )
-        if (claimed) continue
+        // The folder knows which build it holds even when the list forgot
+        // (a rescan rebuilds legacy entries without one).
+        if (folder.buildKey) {
+          for (const game of claimants) game.buildKey ??= folder.buildKey
+        }
+        if (claimants.length > 0) continue
 
         const game = gamesStore.games.find((g) =>
           Object.values(g.name ?? {}).some((name) => name && installFolderName(name) === folder.name)
@@ -224,7 +248,8 @@ const useGameRoutes = defineStore('gameRoutes', {
           gameId: game.game_id,
           route: folder.entry,
           kind: folder.kind,
-          root: folder.root
+          root: folder.root,
+          buildKey: folder.buildKey
         })
       }
 

@@ -7,6 +7,27 @@ import extract from 'extract-zip'
 import { WindowManager } from './WindowManager'
 import { removeAchievementManifest } from './buildManifest'
 
+// Written into every install's root: which build is on disk. The renderer's
+// install list lives in localStorage and loses it on a rescan; the folder
+// keeps it, so an outdated build is always recognised as one.
+const BUILD_MARKER = '.boly-build.json'
+
+// What the renderer knows about an install that the download itself doesn't:
+// the build it is fetching, and the folder of the build it replaces.
+export interface InstallOptions {
+  buildKey?: string
+  previousRoot?: string
+}
+
+export interface LibraryFolder {
+  name: string
+  root: string
+  entry: string
+  kind: 'exe' | 'html'
+  /** From the build marker; absent for installs made before it existed. */
+  buildKey?: string
+}
+
 export class InstallerService {
   private static instance: InstallerService
 
@@ -43,7 +64,75 @@ export class InstallerService {
     return libPath
   }
 
-  public async downloadTempFile(token: string, game_id: number, gameName: string, build_id?: number): Promise<any> {
+  // Strictly below a library root — never the root itself, so a bad path
+  // can't wipe the whole library — checked on the resolved path and, for
+  // whatever part of it exists, on the real path (no symlink escapes).
+  private isInsideLibrary(candidate: string): boolean {
+    const libraryRoots = [
+      this.getLibraryPath(),
+      path.join(app.getPath('documents'), 'My Games') // legacy installs
+    ].filter((root) => fs.existsSync(root))
+    const isInside = (root: string, child: string): boolean => {
+      const relative = path.relative(root, child)
+      return relative !== '' && relative !== '..' &&
+        !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative)
+    }
+    const resolved = path.resolve(candidate)
+    const existing = fs.existsSync(resolved) ? resolved : path.dirname(resolved)
+    return libraryRoots.some(
+      (root) =>
+        isInside(path.resolve(root), resolved) &&
+        (!fs.existsSync(existing) ||
+          isInside(fs.realpathSync(root), fs.realpathSync(existing)))
+    )
+  }
+
+  public readBuildMarker(root: string): string | undefined {
+    try {
+      const marker = JSON.parse(fs.readFileSync(path.join(root, BUILD_MARKER), 'utf8'))
+      return typeof marker?.buildKey === 'string' ? marker.buildKey : undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  // Runs once a build is in place, before install-complete: record which
+  // build it is, and delete the build it replaced when that one lived in
+  // another folder (the game was renamed, installed in another language, or
+  // is a legacy install under My Games) — otherwise the old copy lingers.
+  private finishInstall(root: string, options: InstallOptions): void {
+    if (options.buildKey) {
+      try {
+        fs.writeFileSync(path.join(root, BUILD_MARKER), JSON.stringify({ buildKey: options.buildKey }))
+      } catch (err) {
+        console.error('Failed to write the build marker:', err)
+      }
+    }
+
+    if (!options.previousRoot) return
+    try {
+      let previous = path.resolve(options.previousRoot)
+      if (fs.existsSync(previous) && !fs.statSync(previous).isDirectory()) {
+        previous = path.dirname(previous)
+      }
+      const current = path.resolve(root)
+      const relative = path.relative(previous, current)
+      const containsCurrent = relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+      if (containsCurrent || !fs.existsSync(previous) || !this.isInsideLibrary(previous)) return
+      console.log('Removing the previous build:', previous)
+      fs.rmSync(previous, { recursive: true, force: true })
+    } catch (err) {
+      console.error('Failed to remove the previous build:', err)
+    }
+  }
+
+  public async downloadTempFile(
+    token: string,
+    game_id: number,
+    gameName: string,
+    build_id?: number,
+    options: InstallOptions = {}
+  ): Promise<any> {
     // build_id previews a specific (possibly still-pending) build for review
     // instead of the game's live one — see Game.controller.ts's getUrl.
     const req = { token, game_id, is_web: false, ...(build_id != null ? { build_id } : {}) }
@@ -127,9 +216,9 @@ export class InstallerService {
           })
 
           if (fileType === 'zip') {
-            this.installGameFromZip(tempPath, gamePath, file_game_id)
+            this.installGameFromZip(tempPath, gamePath, file_game_id, options)
           } else {
-            this.installGame(tempPath, gamePath, file_game_id)
+            this.installGame(tempPath, gamePath, file_game_id, options)
           }
           resolve(tempPath)
         })
@@ -165,7 +254,8 @@ export class InstallerService {
   public async installGame(
     installerRoute: string,
     destinationRoute: string,
-    game_id: number
+    game_id: number,
+    options: InstallOptions = {}
   ): Promise<any> {
     try {
       WindowManager.getInstance().send('install-started', {
@@ -198,6 +288,7 @@ export class InstallerService {
             try {
               fs.copyFileSync(installerRoute, destExePath)
               this.deleteFile(installerRoute)
+              this.finishInstall(destinationRoute, options)
               WindowManager.getInstance().send('install-complete', {
                 gameId: game_id,
                 installPath: destExePath,
@@ -234,6 +325,7 @@ export class InstallerService {
               ? gameExeFiles[0]
               : exeFiles[0]
 
+          this.finishInstall(destinationRoute, options)
           WindowManager.getInstance().send('install-complete', {
             gameId: game_id,
             installPath: exePath,
@@ -264,7 +356,8 @@ export class InstallerService {
   public async installGameFromZip(
     zipPath: string,
     destinationRoute: string,
-    game_id: number
+    game_id: number,
+    options: InstallOptions = {}
   ): Promise<any> {
     try {
       WindowManager.getInstance().send('install-started', {
@@ -301,6 +394,7 @@ export class InstallerService {
       const entry = this.resolveBuildEntry(destinationRoute)
       if (entry) {
         console.log(`Installed ${entry.kind} build, entry point:`, entry.path)
+        this.finishInstall(destinationRoute, options)
         WindowManager.getInstance().send('install-complete', {
           gameId: game_id,
           installPath: entry.path,
@@ -365,15 +459,23 @@ export class InstallerService {
   // installs it has no record of: zip builds can't be matched by executable
   // name (their file_name.desktop is an S3 key, not an .exe), only by the
   // folder downloadTempFile named after the game.
-  public listLibraryFolders(): { name: string; root: string; entry: string; kind: 'exe' | 'html' }[] {
+  public listLibraryFolders(): LibraryFolder[] {
     const libraryPath = this.getLibraryPath()
-    const folders: { name: string; root: string; entry: string; kind: 'exe' | 'html' }[] = []
+    const folders: LibraryFolder[] = []
     for (const dirent of fs.readdirSync(libraryPath, { withFileTypes: true })) {
       // .incoming is an extraction still in progress (or one that crashed).
       if (!dirent.isDirectory() || dirent.name.endsWith('.incoming')) continue
       const root = path.join(libraryPath, dirent.name)
       const entry = this.resolveBuildEntry(root)
-      if (entry) folders.push({ name: dirent.name, root, entry: entry.path, kind: entry.kind })
+      if (entry) {
+        folders.push({
+          name: dirent.name,
+          root,
+          entry: entry.path,
+          kind: entry.kind,
+          buildKey: this.readBuildMarker(root)
+        })
+      }
     }
     return folders
   }
@@ -436,29 +538,7 @@ export class InstallerService {
         return { success: false, error: 'Invalid uninstall request' }
       }
 
-      const libraryRoots = [
-        this.getLibraryPath(),
-        path.join(app.getPath('documents'), 'My Games') // legacy installs
-      ].filter((root) => fs.existsSync(root))
-      const isInside = (root: string, candidate: string): boolean => {
-        const relative = path.relative(root, candidate)
-        return relative !== '' && relative !== '..' &&
-          !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative)
-      }
-      // Strictly below a library root — never the root itself, so a bad path
-      // can't wipe the whole library — checked on the resolved path and, for
-      // whatever part of it exists, on the real path (no symlink escapes).
-      const insideLibrary = (candidate: string): boolean => {
-        const resolved = path.resolve(candidate)
-        const existing = fs.existsSync(resolved) ? resolved : path.dirname(resolved)
-        return libraryRoots.some(
-          (root) =>
-            isInside(path.resolve(root), resolved) &&
-            (!fs.existsSync(existing) ||
-              isInside(fs.realpathSync(root), fs.realpathSync(existing)))
-        )
-      }
-      if (!insideLibrary(uninstallerPath)) {
+      if (!this.isInsideLibrary(uninstallerPath)) {
         return { success: false, error: 'Uninstall target is outside the games library' }
       }
 
@@ -486,7 +566,7 @@ export class InstallerService {
         }
         // A file sitting directly in a library root would make that root the
         // folder to delete.
-        if (!insideLibrary(gameDir)) {
+        if (!this.isInsideLibrary(gameDir)) {
           return { success: false, error: 'Uninstall target is outside the games library' }
         }
         fs.rmSync(gameDir, { recursive: true, force: true })

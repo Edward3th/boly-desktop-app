@@ -170,8 +170,11 @@ function registerIpcHandlers() {
   })
 
   ipcMain.handle('download-game', async (_event, appData) => {
-    const { game_id, token, gameName, build_id } = appData
-    return installerService.downloadTempFile(token, game_id, gameName, build_id)
+    const { game_id, token, gameName, build_id, buildKey, previousRoot } = appData
+    return installerService.downloadTempFile(token, game_id, gameName, build_id, {
+      buildKey: typeof buildKey === 'string' ? buildKey : undefined,
+      previousRoot: typeof previousRoot === 'string' ? previousRoot : undefined
+    })
   })
 
   ipcMain.handle('play-game', async (_event, appData) => {

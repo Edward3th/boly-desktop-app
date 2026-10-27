@@ -4,7 +4,14 @@ interface ElectronAPIExtended {
   seleccionarArchivo: () => Promise<string>
   seleccionarCarpeta: () => Promise<string>
   playGame: (appData: any) => Promise<{ success?: boolean; pid?: number; error?: string }>
-  downloadGame: (appData: { game_id: number; token: string; gameName: string }) => Promise<any>
+  downloadGame: (appData: {
+    game_id: number
+    token: string
+    gameName: string
+    build_id?: number
+    buildKey?: string
+    previousRoot?: string
+  }) => Promise<any>
   uninstallGame: (appData: {
     game_id: number
     uninstallerPath: string
@@ -13,7 +20,7 @@ interface ElectronAPIExtended {
   endGameSession: () => Promise<void>
   searchExeFiles: (baseDir?: string) => Promise<{ files?: string[]; error?: string }>
   listLibraryFolders: () => Promise<{
-    folders?: { name: string; root: string; entry: string; kind: 'exe' | 'html' }[]
+    folders?: { name: string; root: string; entry: string; kind: 'exe' | 'html'; buildKey?: string }[]
     error?: string
   }>
   windowMinimize: () => Promise<void>

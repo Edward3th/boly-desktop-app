@@ -3,7 +3,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useAuth, useAchievements, useGames } from '@/stores'
-import useGameRoutes from '@/desktop-stores/gameRoutes'
+import useGameRoutes, { buildNeedsUpdate } from '@/desktop-stores/gameRoutes'
 import type { Game, GameAchievement, LocalizedString } from '@/types'
 import PlayIcon from '@/components/icons/PlayIcon.vue'
 import LoadingSpinnerIcon from '@/components/icons/LoadingSpinnerIcon.vue'
@@ -88,14 +88,17 @@ const isWebGame = computed(
 // in the player instead of as a process.
 const isLocalHtmlBuild = computed(() => props.item.game_Kind === 'html')
 
-// An approved build newer than the one on disk. Both keys must be known: an
-// install predating update tracking (or one the disk rescan rediscovered)
-// has no recorded build, and claiming an update there would be a guess.
-const needsUpdate = computed(() => {
-  const installed = props.item.installedBuildKey
-  const current = props.item.file_name?.desktop
-  return Boolean(props.item.isInstalled && installed && current && installed !== current)
-})
+// The approved build isn't the one on disk — or nobody knows which one is on
+// disk. Either way the game can't be played until it's updated: Play()
+// updates instead, and the update replaces the old build.
+const needsUpdate = computed(() =>
+  Boolean(
+    props.item.isInstalled &&
+      !isWebGame.value &&
+      !props.item.pending_review &&
+      buildNeedsUpdate(props.item.installedBuildKey, props.item.file_name?.desktop)
+  )
+)
 
 // One place deciding what the main button is, instead of the same nested
 // ternary repeated across class, label and icon — adding the update state to
@@ -349,6 +352,11 @@ onMounted(() => {
 })
 
 async function Play() {
+  // The row itself is clickable too: an outdated build is never launched.
+  if (needsUpdate.value) {
+    Download()
+    return
+  }
   if (legacyEmbeddedRoute.value) {
     // Embedded in the app itself — just navigate to its route
     recordPlayed(props.item.game_id)
@@ -426,7 +434,13 @@ async function Download() {
         gameName: gameName,
         // Not yet approved — install the specific build under review
         // rather than whatever (if anything) is the game's live version.
-        build_id: props.item.pending_review ? props.item.pending_build_id : undefined
+        build_id: props.item.pending_review ? props.item.pending_build_id : undefined,
+        buildKey: props.item.file_name?.desktop,
+        // An update may land in another folder (the game was renamed, or
+        // installed under another language's name): the old one goes.
+        previousRoot: props.item.isInstalled
+          ? props.item.game_Root || props.item.game_Path
+          : undefined
       })
     }
   } catch (error) {

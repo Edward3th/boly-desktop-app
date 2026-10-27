@@ -32,6 +32,7 @@ export const en = {
   home_quick_play: 'Play',
   home_quick_launching: 'Starting…',
   home_quick_launch_error: 'The game could not be started',
+  home_quick_update_required: 'A new version is out: update the game in your library',
   home_quick_downloading: 'Downloading',
   home_quick_library_none: "You don't have any games yet. Activate your subscription on boly.cl to play the whole catalogue.",
   home_quick_login_prompt: 'Log in to see your games and the ones you have installed',

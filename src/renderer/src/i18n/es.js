@@ -31,6 +31,7 @@ export const es = {
   home_quick_play: 'Jugar',
   home_quick_launching: 'Iniciando…',
   home_quick_launch_error: 'No se pudo iniciar el juego',
+  home_quick_update_required: 'Hay una versión nueva: actualiza el juego en la biblioteca',
   home_quick_downloading: 'Descargando',
   home_quick_library_none: 'Aún no tienes juegos. Activa tu suscripción en boly.cl para jugar todo el catálogo.',
   home_quick_login_prompt: 'Inicia sesión para ver tus juegos y los que tienes instalados',
