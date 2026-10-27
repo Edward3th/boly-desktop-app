@@ -91,7 +91,7 @@ export class InstallerService {
         url: responseUrl.data.url,
         responseType: 'stream'
       })
-      const totalLength = parseInt(response.headers['content-length'] || '0', 10)
+      const totalLength = Number(response.headers['content-length']) || 0
 
       let downloaded = 0
       let lastProgressUpdate = Date.now()
@@ -99,7 +99,7 @@ export class InstallerService {
 
       response.data.on('data', (chunk: Buffer) => {
         downloaded += chunk.length
-        const percent = (downloaded / totalLength) * 100
+        const percent = totalLength > 0 ? Math.min(100, (downloaded / totalLength) * 100) : 0
         process.stdout.write(`\r📥 Descargando... ${percent.toFixed(2)}%`)
 
         const now = Date.now()
@@ -432,6 +432,36 @@ export class InstallerService {
 
   public async uninstallGame(game_id: number, uninstallerPath: string): Promise<any> {
     try {
+      if (!Number.isInteger(game_id) || game_id <= 0 || typeof uninstallerPath !== 'string') {
+        return { success: false, error: 'Invalid uninstall request' }
+      }
+
+      const libraryRoots = [
+        this.getLibraryPath(),
+        path.join(app.getPath('documents'), 'My Games') // legacy installs
+      ].filter((root) => fs.existsSync(root))
+      const isInside = (root: string, candidate: string): boolean => {
+        const relative = path.relative(root, candidate)
+        return relative !== '' && relative !== '..' &&
+          !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative)
+      }
+      // Strictly below a library root — never the root itself, so a bad path
+      // can't wipe the whole library — checked on the resolved path and, for
+      // whatever part of it exists, on the real path (no symlink escapes).
+      const insideLibrary = (candidate: string): boolean => {
+        const resolved = path.resolve(candidate)
+        const existing = fs.existsSync(resolved) ? resolved : path.dirname(resolved)
+        return libraryRoots.some(
+          (root) =>
+            isInside(path.resolve(root), resolved) &&
+            (!fs.existsSync(existing) ||
+              isInside(fs.realpathSync(root), fs.realpathSync(existing)))
+        )
+      }
+      if (!insideLibrary(uninstallerPath)) {
+        return { success: false, error: 'Uninstall target is outside the games library' }
+      }
+
       console.log('Uninstalling game:', game_id, 'using uninstaller:', uninstallerPath)
 
       // Zip builds have no Inno Setup uninstaller, so the caller passes either
@@ -453,6 +483,11 @@ export class InstallerService {
         console.log('No uninstaller found, deleting game folder:', gameDir)
         if (!fs.existsSync(gameDir)) {
           return { success: false, error: 'Game folder not found at: ' + gameDir }
+        }
+        // A file sitting directly in a library root would make that root the
+        // folder to delete.
+        if (!insideLibrary(gameDir)) {
+          return { success: false, error: 'Uninstall target is outside the games library' }
         }
         fs.rmSync(gameDir, { recursive: true, force: true })
         return { success: true, message: 'Game uninstalled successfully' }

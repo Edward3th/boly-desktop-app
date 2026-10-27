@@ -3,7 +3,6 @@ import { ElectronAPI } from '@electron-toolkit/preload'
 interface ElectronAPIExtended {
   seleccionarArchivo: () => Promise<string>
   seleccionarCarpeta: () => Promise<string>
-  instalarDesdeZip: (rutaExe: string, rutaDestion: string) => Promise<any>
   playGame: (appData: any) => Promise<{ success?: boolean; pid?: number; error?: string }>
   downloadGame: (appData: { game_id: number; token: string; gameName: string }) => Promise<any>
   uninstallGame: (appData: {

@@ -169,18 +169,6 @@ function registerIpcHandlers() {
     return result.filePaths[0]
   })
 
-  ipcMain.handle('instalar-desde-zip', async (rutaExe, rutaDestino) => {
-    // Logic was effectively exec command in original file
-    require('child_process').exec(
-      `"${rutaExe}" /DIR="${rutaDestino}" /SILENT`,
-      (err: any, stdout: any) => {
-        if (err) console.error('Error:', err.message)
-        else console.log('Resultado:', stdout)
-      }
-    )
-    return true
-  })
-
   ipcMain.handle('download-game', async (_event, appData) => {
     const { game_id, token, gameName, build_id } = appData
     return installerService.downloadTempFile(token, game_id, gameName, build_id)

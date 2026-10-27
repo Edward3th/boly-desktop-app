@@ -5,7 +5,6 @@
 interface ElectronAPIExtended {
   seleccionarArchivo: () => Promise<string>
   seleccionarCarpeta: () => Promise<string>
-  instalarDesdeZip: (rutaExe: string, rutaDestino: string) => Promise<boolean>
   playGame: (appData: {
     game_id: number
     appPath: string

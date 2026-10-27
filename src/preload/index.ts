@@ -1,9 +1,5 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
 import { contextBridge, ipcRenderer } from 'electron'
 import { electronAPI } from '@electron-toolkit/preload'
-//import { on } from 'events';
-// @ts-ignore (define in dts)
-window.ipcRenderer = require('electron').ipcRenderer
 
 // Custom APIs for renderer
 const api = {}
@@ -11,7 +7,6 @@ const api = {}
 // Use `contextBridge` APIs to expose Electron APIs to
 // renderer only if context isolation is enabled, otherwise
 // just add to the DOM global.
-console.log('contextIsolated: ' + process.contextIsolated)
 if (process.contextIsolated) {
   try {
     contextBridge.exposeInMainWorld('electron', electronAPI)
@@ -19,8 +14,6 @@ if (process.contextIsolated) {
     contextBridge.exposeInMainWorld('electronAPI', {
       seleccionarArchivo: () => ipcRenderer.invoke('seleccionar-archivo'),
       seleccionarCarpeta: () => ipcRenderer.invoke('seleccionar-carpeta'),
-      instalarDesdeZip: (rutaExe, rutaDestion) =>
-        ipcRenderer.invoke('instalar-desde-zip', rutaExe, rutaDestion),
       playGame: (appData) => ipcRenderer.invoke('play-game', appData),
       downloadGame: (appData) => ipcRenderer.invoke('download-game', appData),
       uninstallGame: (appData) => ipcRenderer.invoke('uninstall-game', appData),
@@ -107,8 +100,6 @@ if (process.contextIsolated) {
   window.electronAPI = {
     seleccionarArchivo: () => ipcRenderer.invoke('seleccionar-archivo'),
     seleccionarCarpeta: () => ipcRenderer.invoke('seleccionar-carpeta'),
-    instalarDesdeZip: (rutaExe, rutaDestion) =>
-      ipcRenderer.invoke('instalar-desde-zip', rutaExe, rutaDestion),
     playGame: (appData) => ipcRenderer.invoke('play-game', appData),
     downloadGame: (appData) => ipcRenderer.invoke('download-game', appData),
     uninstallGame: (appData) => ipcRenderer.invoke('uninstall-game', appData),
