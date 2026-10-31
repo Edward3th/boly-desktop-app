@@ -160,9 +160,25 @@ assets de guardado. Carga solo después de `OnReady` y usa la ruta del SDK:
 Nunca uses `Application.persistentDataPath`, `user://`, `PlayerPrefs`, el área
 de guardado predeterminada ni nombres de slot directos para **datos del
 jugador**. Si el juego ya tiene una partida compartida, déjala intacta; no
-atribuyas su dueño sin una decisión de la persona. Comprueba con dos sesiones
-del verificador (`--only 8`) y revisa sus WARN: configuración de video y logs
-pueden ser legítimos, pero el progreso debe quedar separado.
+atribuyas su dueño sin una decisión de la persona.
+
+Integrar el SDK no separa nada por sí solo; hay que cambiar cada guardado:
+
+1. Busca en todo el proyecto los accesos al almacenamiento (la tabla "Antes de
+   subir una build" de `GUARDADO.md` lista qué buscar en cada motor) y revisa
+   cada resultado. Datos del jugador incluye **trofeos, medallas o logros que
+   el juego guarde por su cuenta**, aunque también estén en Boly, además de
+   avance, puntajes, perfiles y tutoriales vistos.
+2. Si un archivo mezcla configuración del equipo (video, volumen) con
+   progreso, sepáralo: la configuración puede quedar compartida; el progreso
+   va a la ruta del SDK.
+3. Mueve toda carga de partida que ocurra al iniciar (autoload, `Awake`,
+   `_ready`) a `OnReady`.
+
+Comprueba con dos sesiones del verificador (`--only 8`) y revisa sus WARN:
+configuración de video y logs pueden ser legítimos, pero el progreso debe
+quedar separado. El verificador no juega, así que pide a la persona la prueba
+con dos cuentas de `GUARDADO.md` antes de subir la build; no la des por hecha.
 
 ## Paso 2b: logros (opcional)
 
@@ -257,6 +273,8 @@ Desde la carpeta del kit (PowerShell):
 | FAIL "Game quit on 403" o "Repeated failures" | Algo impide cerrar | Unity `Application.wantsToQuit`; código que se bloquea dentro de `OnSessionEnded` |
 | FAIL "Cadence is steady" | El heartbeat se detuvo | Cargas bloqueantes; usa carga asíncrona |
 | WARN "Identifies the SDK" | El build todavía usa ParamsCatcher | Termina el Paso 1 |
+| WARN "Files outside the Boly save area" | El juego escribe fuera de `boly/saves/<alumno>/` | Revisa cada ruta: si guarda avance, trofeos o perfiles, cámbiala a la ruta del SDK (Paso 2a) |
+| WARN "No files or PlayerPrefs changed" | El juego no guardó durante la prueba automática | No confirma la separación: haz la prueba con dos cuentas de `GUARDADO.md` |
 | FAIL en "Achievements" | SDK modificado o incompleto | Vuelve a copiar el SDK del kit sin cambios; no envíes logros con tu propio código de red. En Godot, Unreal o GameMaker, si sigue fallando con el SDK del kit, repórtalo a la persona (posible error del SDK) |
 | WARN "Notifies the Boly app of the unlock" | SDK anterior a 0.3 | Vuelve a copiar el SDK del kit |
 | FAIL "Notifies the Boly app of the unlock" | SDK modificado; en GameMaker, el sandbox de archivos activo | Copia el SDK sin cambios; en GameMaker desactiva el sandbox (Paso 1) |

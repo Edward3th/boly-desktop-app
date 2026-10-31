@@ -24,7 +24,9 @@ BOLY - KIT DE INTEGRACION DE JUEGOS
    dentro de la build, probarlos y publicarlos).
 
    GUARDADO.md explica como separar la partida de cada alumno en un PC
-   compartido. Requiere Boly SDK 0.4 y cambiar el codigo de guardado del juego.
+   compartido. Requiere Boly SDK 0.4 y cambiar el codigo de guardado del juego,
+   incluidos los trofeos o medallas que el juego guarde por su cuenta. Antes de
+   subir cada build, haz la prueba con dos cuentas que describe.
 
 6. No hay que configurar ningun id de juego: Boly lo asigna cuando se crea tu
    juego y el launcher se lo pasa al ejecutable al arrancar.
