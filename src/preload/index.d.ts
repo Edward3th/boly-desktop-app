@@ -1,3 +1,10 @@
+type AppUpdateState = {
+  status: 'idle' | 'checking' | 'up-to-date' | 'available' | 'downloading' | 'ready' | 'error'
+  version?: string
+  percent?: number
+  bytesPerSecond?: number
+}
+
 import { ElectronAPI } from '@electron-toolkit/preload'
 
 interface ElectronAPIExtended {
@@ -35,17 +42,12 @@ interface ElectronAPIExtended {
     headers?: Record<string, string>
   }) => Promise<any>
   onDeepLinkUrl: (callback: (url: string) => void) => void
-  updateMessage: (callback: (message: string) => void) => void
-  onUpdateProgress: (
-    callback: (data: {
-      bytesPerSecond: number
-      percent: number
-      transferred: number
-      total: number
-    }) => void
-  ) => void
-  applyUpdate: () => Promise<void>
-  checkUpdates: () => Promise<string>
+  getUpdateState: () => Promise<AppUpdateState>
+  onUpdateState: (callback: (state: AppUpdateState) => void) => void
+  checkUpdates: () => Promise<void>
+  downloadUpdate: () => Promise<void>
+  // False when a game is running: installing would close it.
+  applyUpdate: () => Promise<boolean>
   getVersion: () => Promise<string>
   onDownloadStarted: (callback: (data: any) => void) => void
   onDownloadProgress: (callback: (data: any) => void) => void

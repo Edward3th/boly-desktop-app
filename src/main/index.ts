@@ -87,13 +87,15 @@ function registerIpcHandlers() {
 
   ipcMain.handle('is-game-running', (_event, gameId) => gameService.isActive(gameId))
 
-  ipcMain.handle('check-updates', () => {
-    updaterService.checkForUpdates()
-    return 'Checking for updates...'
-  })
+  ipcMain.handle('get-update-state', () => updaterService.getState())
+  ipcMain.handle('check-updates', () => updaterService.checkForUpdates())
+  ipcMain.handle('download-update', () => updaterService.downloadUpdate())
 
+  // Installing closes Boly, which would cut off a game in progress.
   ipcMain.handle('apply-update', () => {
+    if (gameService.hasActiveSession()) return false
     updaterService.applyUpdate()
+    return true
   })
 
   // API Proxy
@@ -268,6 +270,8 @@ app.whenReady().then(() => {
   } catch (error) {
     console.error('Error in update setup:', error)
   }
+
+  updaterService.checkForUpdates()
 
   // Listen for session invalidation to cleanup games
   authService.on('session-invalidated', async () => {

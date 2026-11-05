@@ -1,8 +1,18 @@
 import { autoUpdater } from 'electron-updater'
 import { WindowManager } from './WindowManager'
 
+export type UpdateState = {
+  status: 'idle' | 'checking' | 'up-to-date' | 'available' | 'downloading' | 'ready' | 'error'
+  // The version on offer. On 'error' it is set only if the download failed, so
+  // the UI can offer a retry; a failed check has nothing to retry and stays quiet.
+  version?: string
+  percent?: number
+  bytesPerSecond?: number
+}
+
 export class UpdaterService {
   private static instance: UpdaterService
+  private state: UpdateState = { status: 'idle' }
 
   private constructor() {
     this.configureAutoUpdater()
@@ -17,6 +27,8 @@ export class UpdaterService {
   }
 
   private configureAutoUpdater(): void {
+    // The user decides when to download. A finished download that they didn't
+    // install straight away goes in when they close the app.
     autoUpdater.autoDownload = false
     autoUpdater.autoInstallOnAppQuit = true
     autoUpdater.logger = console
@@ -25,87 +37,76 @@ export class UpdaterService {
     autoUpdater.requestHeaders = {
       'User-Agent': 'Boly-Desktop-App'
     }
-    // token removed as per original file comments
     autoUpdater.setFeedURL({
       provider: 'github',
       repo: 'boly-desktop-app',
-      owner: 'tiagowhuber',
+      owner: 'Edward3th',
       private: false
     })
   }
 
-  private showMessage(message: string): void {
+  private setState(state: UpdateState): void {
+    this.state = state
     const win = WindowManager.getInstance().getMainWindow()
     if (win && !win.isDestroyed()) {
-      win.webContents.send('update-message', message)
-    }
-  }
-
-  private sendProgress(data: {
-    bytesPerSecond: number
-    percent: number
-    transferred: number
-    total: number
-  }): void {
-    const win = WindowManager.getInstance().getMainWindow()
-    if (win && !win.isDestroyed()) {
-      win.webContents.send('update-progress', data)
+      win.webContents.send('update-state', state)
     }
   }
 
   private setupListeners(): void {
-    autoUpdater.on('checking-for-update', () => {
-      this.showMessage('Checking for updates...')
-      console.log('Checking for updates...')
-    })
-
-    autoUpdater.on('update-available', () => {
-      this.showMessage('Update available')
-      console.log('Update available')
-      autoUpdater.downloadUpdate().catch((err) => {
-        console.error('Download error:', err)
-        this.showMessage('Download error: ' + err.message)
-      })
+    autoUpdater.on('update-available', (info) => {
+      this.setState({ status: 'available', version: info.version })
     })
 
     autoUpdater.on('update-not-available', () => {
-      console.log('Update not available')
-      this.showMessage('No updates available')
+      this.setState({ status: 'up-to-date' })
     })
 
     autoUpdater.on('error', (error) => {
-      console.error('Error checking for updates:', error)
-      if (error.message.includes('403') || error.message.includes('AuthenticationFailed')) {
-        console.error('Authentication failed - GitHub token may be invalid or expired')
-        this.showMessage('Update check failed: Authentication error.')
-      } else if (error.message.includes('404') && error.message.includes('github.com')) {
-        this.showMessage('Update error: Could not access GitHub repository.')
-      } else {
-        this.showMessage('Error checking for updates: ' + error.message)
-      }
+      console.error('Update error:', error)
+      this.setState({ status: 'error', version: this.state.version })
     })
 
-    autoUpdater.on('download-progress', (progressObj) => {
-      console.log(
-        `Download speed: ${progressObj.bytesPerSecond} - Downloaded ${progressObj.percent}% (${progressObj.transferred}/${progressObj.total})`
-      )
-      this.sendProgress({
-        bytesPerSecond: progressObj.bytesPerSecond,
-        percent: progressObj.percent,
-        transferred: progressObj.transferred,
-        total: progressObj.total
+    autoUpdater.on('download-progress', (progress) => {
+      this.setState({
+        status: 'downloading',
+        version: this.state.version,
+        percent: progress.percent,
+        bytesPerSecond: progress.bytesPerSecond
       })
     })
 
-    autoUpdater.on('update-downloaded', () => {
-      console.log('Update downloaded. Ready to quit and install.')
-      this.showMessage('update-ready')
+    autoUpdater.on('update-downloaded', (info) => {
+      this.setState({ status: 'ready', version: info.version })
     })
   }
 
+  public getState(): UpdateState {
+    return this.state
+  }
+
   public checkForUpdates(): void {
-    console.log('Manually checking for updates...')
-    autoUpdater.checkForUpdates()
+    if (['checking', 'downloading', 'ready'].includes(this.state.status)) return
+
+    this.setState({ status: 'checking' })
+    autoUpdater
+      .checkForUpdates()
+      .then((result) => {
+        // electron-updater skips the check and resolves null when updates don't
+        // apply to this run, without firing any of the events above.
+        if (!result && this.state.status === 'checking') this.setState({ status: 'idle' })
+      })
+      // Already reported through the 'error' event.
+      .catch(() => {})
+  }
+
+  public downloadUpdate(): void {
+    const { status, version } = this.state
+    if (!version || (status !== 'available' && status !== 'error')) return
+
+    this.setState({ status: 'downloading', version, percent: 0, bytesPerSecond: 0 })
+    // Already reported through the 'error' event.
+    autoUpdater.downloadUpdate().catch(() => {})
   }
 
   public applyUpdate(): void {

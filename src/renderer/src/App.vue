@@ -11,6 +11,8 @@ import { useAuth } from '@/stores'
 import useDownloadStore from '@/desktop-stores/download'
 import ModalComponent from '@/components/ModalComponent.vue'
 import WindowControls from '@/desktop-components/WindowControls.vue'
+import AppUpdateNotice from '@/desktop-components/AppUpdateNotice.vue'
+import useAppUpdateStore from '@/desktop-stores/appUpdate'
 
 const auth = useAuth()
 const downloadStore = useDownloadStore()
@@ -18,6 +20,7 @@ const router = useRouter()
 const route = useRoute()
 
 auth.checkToken()
+useAppUpdateStore().init()
 
 // Match the scrollbar tint to the navbar color: orange on home, pink elsewhere
 watch(
@@ -40,6 +43,7 @@ const goToReportProblem = () => {
 <template>
   <!-- Custom frameless-window title bar (drag region + min/max/close), always visible -->
   <WindowControls />
+  <AppUpdateNotice />
   <template v-if="auth.verifying && $route.path !== '/login' && $route.path !== '/register'">
     <TheNavbar :color="'pink'" style="z-index: 100 !important" />
     <SkeletonPage class="view-container" />

@@ -7,7 +7,7 @@ directories:
 # Auto update configuration
 publish:
   provider: github
-  owner: tiagowhuber
+  owner: Edward3th
   repo: boly-desktop-app
   private: true
   releaseType: release

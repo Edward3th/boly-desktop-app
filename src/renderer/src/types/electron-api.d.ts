@@ -1,3 +1,10 @@
+type AppUpdateState = {
+  status: 'idle' | 'checking' | 'up-to-date' | 'available' | 'downloading' | 'ready' | 'error'
+  version?: string
+  percent?: number
+  bytesPerSecond?: number
+}
+
 // filepath: c:\Users\tiago\Documents\BolyDesk0\Boly\src\renderer\src\types\electron-api.d.ts
 /**
  * Type definitions for Electron API
@@ -58,17 +65,12 @@ interface ElectronAPIExtended {
     folders?: { name: string; root: string; entry: string; kind: 'exe' | 'html'; buildKey?: string }[]
     error?: string
   }>
-  updateMessage: (callback: (message: string) => void) => void
-  onUpdateProgress: (
-    callback: (data: {
-      bytesPerSecond: number
-      percent: number
-      transferred: number
-      total: number
-    }) => void
-  ) => void
-  applyUpdate: () => Promise<void>
-  checkUpdates: () => Promise<string>
+  getUpdateState: () => Promise<AppUpdateState>
+  onUpdateState: (callback: (state: AppUpdateState) => void) => void
+  checkUpdates: () => Promise<void>
+  downloadUpdate: () => Promise<void>
+  // False when a game is running: installing would close it.
+  applyUpdate: () => Promise<boolean>
   getVersion: () => Promise<string>
 
   // Download event listeners

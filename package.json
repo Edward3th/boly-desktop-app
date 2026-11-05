@@ -20,13 +20,13 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/tiagowhuber/boly-desktop-app.git"
+    "url": "https://github.com/Edward3th/boly-desktop-app.git"
   },
   "publish": {
     "provider": "github",
     "releaseType": "release",
     "private": false,
-    "owner": "tiagowhuber",
+    "owner": "Edward3th",
     "repo": "boly-desktop-app"
   },
   "dependencies": {

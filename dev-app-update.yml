@@ -1,4 +1,4 @@
 provider: github
-owner: tiagowhuber
+owner: Edward3th
 repo: boly-desktop-app
 updaterCacheDirName: boly-updater

@@ -31,16 +31,15 @@ if (process.contextIsolated) {
       searchExeFiles: (baseDir) => ipcRenderer.invoke('search-exe-files', baseDir),
       listLibraryFolders: () => ipcRenderer.invoke('list-library-folders'),
       apiRequest: (options) => ipcRenderer.invoke('api-request', options),
+      getUpdateState: () => ipcRenderer.invoke('get-update-state'),
       checkUpdates: () => ipcRenderer.invoke('check-updates'),
+      downloadUpdate: () => ipcRenderer.invoke('download-update'),
       getVersion: () => ipcRenderer.invoke('get-version'),
       onDeepLinkUrl: (callback) => {
         ipcRenderer.on('deep-link-url', (_event, url) => callback(url))
       },
-      updateMessage: (callback) => {
-        ipcRenderer.on('update-message', (_event, ...args) => callback(...args))
-      },
-      onUpdateProgress: (callback) => {
-        ipcRenderer.on('update-progress', (_event, ...args) => callback(...args))
+      onUpdateState: (callback) => {
+        ipcRenderer.on('update-state', (_event, state) => callback(state))
       },
       applyUpdate: () => ipcRenderer.invoke('apply-update'),
       onDownloadStarted: (callback) => {
@@ -117,16 +116,15 @@ if (process.contextIsolated) {
     searchExeFiles: (baseDir) => ipcRenderer.invoke('search-exe-files', baseDir),
     listLibraryFolders: () => ipcRenderer.invoke('list-library-folders'),
     apiRequest: (options) => ipcRenderer.invoke('api-request', options),
+    getUpdateState: () => ipcRenderer.invoke('get-update-state'),
     checkUpdates: () => ipcRenderer.invoke('check-updates'),
+    downloadUpdate: () => ipcRenderer.invoke('download-update'),
     getVersion: () => ipcRenderer.invoke('get-version'), // Added proper method to get version
     onDeepLinkUrl: (callback) => {
       ipcRenderer.on('deep-link-url', (_event, url) => callback(url))
     },
-    updateMessage: (callback) => {
-      ipcRenderer.on('update-message', (_event, ...args) => callback(...args))
-    },
-    onUpdateProgress: (callback) => {
-      ipcRenderer.on('update-progress', (_event, ...args) => callback(...args))
+    onUpdateState: (callback) => {
+      ipcRenderer.on('update-state', (_event, state) => callback(state))
     },
     applyUpdate: () => ipcRenderer.invoke('apply-update'),
     onDownloadStarted: (callback) => {

@@ -1,16 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import AlertModal from '@/components/AlertModal.vue'
 import FeaturedHeroCarousel from '@/components/games/FeaturedHeroCarousel.vue'
 import QuickAccessPanel from '@/desktop-components/QuickAccessPanel.vue'
+import AppUpdateActions from '@/desktop-components/AppUpdateActions.vue'
+import useAppUpdateStore from '@/desktop-stores/appUpdate'
 
-const currentVersion = ref('')
+const appUpdate = useAppUpdateStore()
 const showUpdateStatus = ref(false)
-const updateStatus = ref('')
-const isDownloadingUpdate = ref(false)
-const isUpdateReady = ref(false)
-const downloadPercent = ref(0)
-const downloadSpeedFormatted = ref('')
 
 // Modal reactive variables
 const showModal = ref(false)
@@ -21,84 +18,6 @@ function notify(message: string) {
   modalText.value = message
   showModal.value = true
 }
-
-// Lifecycle hooks
-onMounted(() => {
-  console.log('Checking electronAPI availability:', window.electronAPI)
-  console.log('Checking updateMessage availability:', window.electronAPI?.updateMessage)
-
-  // Add the update message listener
-  if (window.electronAPI && window.electronAPI.updateMessage) {
-    console.log('Setting up updateMessage listener')
-    window.electronAPI.updateMessage((message: string) => {
-      console.log('Update message received:', message)
-      if (message === 'update-ready') {
-        isDownloadingUpdate.value = false
-        isUpdateReady.value = true
-        updateStatus.value = 'Update ready to install'
-      } else if (message === 'Update available') {
-        isDownloadingUpdate.value = true
-        isUpdateReady.value = false
-        updateStatus.value = message
-      } else {
-        isDownloadingUpdate.value = false
-        updateStatus.value = message
-      }
-    })
-
-    if (window.electronAPI.onUpdateProgress) {
-      window.electronAPI.onUpdateProgress((data) => {
-        isDownloadingUpdate.value = true
-        downloadPercent.value = Math.round(data.percent)
-        const speedMB = data.bytesPerSecond / (1024 * 1024)
-        downloadSpeedFormatted.value =
-          speedMB >= 1 ? `${speedMB.toFixed(1)} MB/s` : `${Math.round(data.bytesPerSecond / 1024)} KB/s`
-      })
-    }
-
-    // Get current version using the proper method
-    if (window.electronAPI.getVersion) {
-      window.electronAPI
-        .getVersion()
-        .then((version: string) => {
-          console.log('Current version received:', version)
-          currentVersion.value = version
-        })
-        .catch((error: any) => {
-          console.error('Error getting version:', error)
-        })
-    } else {
-      console.error('getVersion function not available')
-    }
-
-    checkForUpdates()
-  } else {
-    console.error('electronAPI or updateMessage function not available')
-    updateStatus.value = 'Update system not available'
-  }
-})
-
-async function checkForUpdates() {
-  try {
-    if (window.electronAPI && window.electronAPI.checkUpdates) {
-      const result = await window.electronAPI.checkUpdates()
-      console.log('Check for updates result:', result)
-      updateStatus.value = result
-    } else {
-      console.error('checkUpdates function not available')
-      updateStatus.value = 'Update check not available'
-    }
-  } catch (error) {
-    console.error('Error checking for updates:', error)
-    updateStatus.value = 'Error checking for updates'
-  }
-}
-
-function applyUpdate() {
-  if (window.electronAPI && window.electronAPI.applyUpdate) {
-    window.electronAPI.applyUpdate()
-  }
-}
 </script>
 
 <template>
@@ -106,36 +25,13 @@ function applyUpdate() {
     <div v-if="showUpdateStatus" class="update-backdrop" @click="showUpdateStatus = false">
       <div class="update-status-container" @click.stop>
         <div class="update-status-header">
-          <h3>{{ isUpdateReady ? 'Update Ready' : isDownloadingUpdate ? 'Downloading Update' : 'App Info' }}</h3>
+          <h3>{{ $t('update_info') }}</h3>
           <button class="close-button" @click="showUpdateStatus = false">×</button>
         </div>
 
-        <template v-if="isDownloadingUpdate">
-          <p class="update-label">Downloading update...</p>
-          <div class="progress-track">
-            <div class="progress-fill" :style="{ width: downloadPercent + '%' }"></div>
-          </div>
-          <div class="progress-meta">
-            <span class="progress-percent">{{ downloadPercent }}%</span>
-            <span class="progress-speed">{{ downloadSpeedFormatted }}</span>
-          </div>
-        </template>
+        <AppUpdateActions />
 
-        <template v-else-if="isUpdateReady">
-          <p class="update-label ready-label">Update downloaded and ready to install.</p>
-          <button class="apply-button" @click="applyUpdate">
-            Click to Apply Update
-          </button>
-        </template>
-
-        <template v-else>
-          <p class="update-status">{{ updateStatus }}</p>
-          <button class="update-button" @click="checkForUpdates">
-            {{ $t('check_for_updates') || 'Check for updates' }}
-          </button>
-        </template>
-
-        <p class="version">{{ currentVersion }}</p>
+        <p class="version">{{ appUpdate.currentVersion }}</p>
       </div>
     </div>
   </transition>
@@ -1386,87 +1282,6 @@ h1 {
   padding: 0 5px;
 }
 
-.update-status {
-  margin: 0 0 12px 0;
-  font-size: 13px;
-  font-family: 'Poppins', sans-serif;
-  width: 100%;
-  color: rgba(255, 255, 255, 0.75);
-}
-
-.update-label {
-  margin: 0 0 10px 0;
-  font-size: 13px;
-  font-family: 'Poppins', sans-serif;
-  width: 100%;
-  color: rgba(255, 255, 255, 0.75);
-}
-
-.ready-label {
-  color: #a8e6a3;
-}
-
-.progress-track {
-  width: 100%;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 3px;
-  overflow: hidden;
-  margin-bottom: 8px;
-}
-
-.progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, #b533c7, #e040fb);
-  border-radius: 3px;
-  transition: width 0.3s ease;
-}
-
-.progress-meta {
-  display: flex;
-  justify-content: space-between;
-  width: 100%;
-  margin-bottom: 4px;
-}
-
-.progress-percent {
-  font-size: 12px;
-  font-family: 'Poppins', sans-serif;
-  font-weight: 600;
-  color: #e040fb;
-}
-
-.progress-speed {
-  font-size: 12px;
-  font-family: 'Poppins', sans-serif;
-  color: rgba(255, 255, 255, 0.5);
-}
-
-.apply-button {
-  margin-top: 4px;
-  background: linear-gradient(135deg, #b533c7, #e040fb);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  padding: 10px 14px;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  font-family: 'Poppins', sans-serif;
-  align-self: stretch;
-  transition: opacity 0.2s ease, transform 0.1s ease;
-  letter-spacing: 0.3px;
-}
-
-.apply-button:hover {
-  opacity: 0.9;
-  transform: translateY(-1px);
-}
-
-.apply-button:active {
-  transform: translateY(0);
-}
-
 .version {
   margin: 12px 0 0 0;
   font-size: 11px;
@@ -1474,25 +1289,6 @@ h1 {
   color: rgba(255, 255, 255, 0.35);
   width: 100%;
   text-align: right;
-}
-
-.update-button {
-  margin-top: 4px;
-  background-color: rgba(181, 51, 199, 0.2);
-  color: #e040fb;
-  border: 1px solid rgba(181, 51, 199, 0.4);
-  border-radius: 8px;
-  padding: 8px 12px;
-  cursor: pointer;
-  font-size: 12px;
-  font-family: 'Poppins', sans-serif;
-  font-weight: 500;
-  align-self: stretch;
-  transition: background-color 0.2s ease;
-}
-
-.update-button:hover {
-  background-color: rgba(181, 51, 199, 0.35);
 }
 
 .info-button {
