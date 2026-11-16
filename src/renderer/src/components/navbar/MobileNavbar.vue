@@ -4,6 +4,7 @@ import TheMainLogo from '../logo/TheMainLogo.vue'
 import { ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuth, useUser } from '@/stores'
+import { avatarFor } from '@/utils/avatars'
 
 const props = defineProps({
   color: {
@@ -73,10 +74,7 @@ function isActive(path: string) {
       <!-- Profile Picture in Top Right -->
       <div v-if="auth.isLoggedIn" class="mobile-user-navigation">
         <img
-          :src="
-            user.profilePictureUrl ||
-            'https://t4.ftcdn.net/jpg/02/15/84/43/360_F_215844325_ttX9YiIIyeaR7Ne6EaLLjMAmy4GvPC69.jpg'
-          "
+          :src="avatarFor(user.userId, user.profilePictureUrl)"
           class="icon user_icon"
           alt="Profile picture"
           @click="GoToAccount()"
@@ -88,10 +86,7 @@ function isActive(path: string) {
         <!-- User Profile Section in Menu -->
         <div v-if="auth.isLoggedIn" class="mobile-profile-section" @click="handleProfileClick">
           <img
-            :src="
-              user.profilePictureUrl ||
-              'https://t4.ftcdn.net/jpg/02/15/84/43/360_F_215844325_ttX9YiIIyeaR7Ne6EaLLjMAmy4GvPC69.jpg'
-            "
+            :src="avatarFor(user.userId, user.profilePictureUrl)"
             class="menu-profile-pic"
             alt="Profile picture"
           />

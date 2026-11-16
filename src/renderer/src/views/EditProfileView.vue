@@ -7,6 +7,8 @@ import AlertModal from '@/components/AlertModal.vue'
 import SimpleLoadingIcon from '@/components/icons/SimpleLoadingIcon.vue'
 import type { UserUpdateRequest, PasswordUpdateRequest } from '@/types'
 import axios from 'axios'
+import AvatarPicker from '@/components/AvatarPicker.vue'
+import { avatarFor } from '@/utils/avatars'
 
 const router = useRouter()
 const auth = useAuth()
@@ -52,13 +54,13 @@ onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
 })
 
-async function handleProfilePicUpload(event: Event): Promise<void> {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  const result = await user.updateProfilePicture(file)
+// Uploading a picture of their own isn't available (the API's upload route is
+// off), so the + opens the Boly / game icons instead.
+const showAvatarPicker = ref<boolean>(false)
+
+function onAvatarSaved(message: string): void {
   showModal.value = true
-  modalWarning.value = result.message
+  modalWarning.value = message
 }
 
 function ChangeUserInfo(): void {
@@ -137,21 +139,19 @@ async function UpdatePassword(request: PasswordUpdateRequest): Promise<void> {
         <div class="profile-pic-container">
           <div class="profile-pic-wrapper">
             <img
-              :src="
-                user.profilePictureUrl ||
-                'https://t4.ftcdn.net/jpg/02/15/84/43/360_F_215844325_ttX9YiIIyeaR7Ne6EaLLjMAmy4GvPC69.jpg'
-              "
+              :src="avatarFor(user.userId, user.profilePictureUrl)"
               class="current-profile-pic"
               alt="Profile picture"
             />
-            <label for="profile-pic-input" class="edit-icon"> + </label>
-            <input
-              id="profile-pic-input"
-              type="file"
-              accept="image/*"
-              class="profile-pic-input"
-              @change="handleProfilePicUpload"
-            />
+            <button
+              type="button"
+              class="edit-icon"
+              :aria-label="$t('avatar_choose')"
+              :title="$t('avatar_choose')"
+              @click="showAvatarPicker = true"
+            >
+              +
+            </button>
           </div>
         </div>
 
@@ -207,21 +207,19 @@ async function UpdatePassword(request: PasswordUpdateRequest): Promise<void> {
               <div class="profile-pic-container">
                 <div class="profile-pic-wrapper">
                   <img
-                    :src="
-                      user.profilePictureUrl ||
-                      'https://t4.ftcdn.net/jpg/02/15/84/43/360_F_215844325_ttX9YiIIyeaR7Ne6EaLLjMAmy4GvPC69.jpg'
-                    "
+                    :src="avatarFor(user.userId, user.profilePictureUrl)"
                     class="current-profile-pic"
                     alt="Profile picture"
                   />
-                  <label for="profile-pic-input" class="edit-icon"> + </label>
-                  <input
-                    id="profile-pic-input"
-                    type="file"
-                    accept="image/*"
-                    class="profile-pic-input"
-                    @change="handleProfilePicUpload"
-                  />
+                  <button
+                    type="button"
+                    class="edit-icon"
+                    :aria-label="$t('avatar_choose')"
+                    :title="$t('avatar_choose')"
+                    @click="showAvatarPicker = true"
+                  >
+                    +
+                  </button>
                 </div>
               </div>
             </template>
@@ -346,6 +344,8 @@ async function UpdatePassword(request: PasswordUpdateRequest): Promise<void> {
         </div>
       </div>
     </div>
+
+    <AvatarPicker :show="showAvatarPicker" @close="showAvatarPicker = false" @saved="onAvatarSaved" />
 
     <Teleport to="body">
       <AlertModal :show="showModal" @close="showModal = false">
@@ -541,10 +541,8 @@ textarea {
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
   font-size: 20px;
   font-weight: bold;
-}
-
-.profile-pic-input {
-  display: none;
+  border: none;
+  padding: 0;
 }
 
 .user-email {

@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import type { User, UserUpdateRequest, PasswordUpdateRequest } from '@/types'
 import axios from 'axios'
 import { useSubscription } from './subscription'
+import { avatarPublicUrl } from '@/utils/avatars'
 
 const useUser = defineStore('user', {
   state: (): User => ({
@@ -89,6 +90,26 @@ const useUser = defineStore('user', {
         return {
           success: false,
           message: error.response?.data?.message || 'Error updating password'
+        }
+      }
+    },
+    // Switch to one of the Boly / game icons (see utils/avatars.ts).
+    async chooseAvatar(id: string) {
+      const url = avatarPublicUrl(id)
+      try {
+        const response = await axios.patch(`/v1/users/${this.userId}`, {
+          profile_picture_url: url
+        })
+        if (response.status === 200) {
+          this.profilePictureUrl = url
+          return { success: true, message: response.data.message }
+        }
+        return { success: false, message: response.data.message }
+      } catch (error: any) {
+        console.error('Error choosing icon:', error)
+        return {
+          success: false,
+          message: error.response?.data?.message || 'Error choosing icon'
         }
       }
     },

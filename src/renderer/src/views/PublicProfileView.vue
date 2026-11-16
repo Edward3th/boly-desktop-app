@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { avatarFor } from '@/utils/avatars'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -89,7 +90,7 @@ watch(username, load)
       <header class="profile-header">
         <img
           v-if="profile.profile_picture_url"
-          :src="profile.profile_picture_url"
+          :src="avatarFor(null, profile.profile_picture_url)"
           :alt="profile.username"
           class="avatar"
         />

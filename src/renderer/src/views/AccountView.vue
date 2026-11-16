@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import SkeletonList from '@/components/skeletons/SkeletonList.vue'
 import { useAuth, useUser } from '@/stores'
+import { avatarFor } from '@/utils/avatars'
 import { RouterLink, useRouter } from 'vue-router'
 import DiagonalPencilIcon from '@/components/icons/DiagonalPencilIcon.vue'
 import DoorIcon from '@/components/icons/DoorIcon.vue'
@@ -99,10 +100,7 @@ const sendVerification = async () => {
       <div class="mobile-header">
         <img
           class="profile-pic"
-          :src="
-            user.profilePictureUrl ||
-            'https://t4.ftcdn.net/jpg/02/15/84/43/360_F_215844325_ttX9YiIIyeaR7Ne6EaLLjMAmy4GvPC69.jpg'
-          "
+          :src="avatarFor(user.userId, user.profilePictureUrl)"
           alt="Profile picture"
         />
         <div class="details">
@@ -209,10 +207,7 @@ const sendVerification = async () => {
           <div class="account-preview">
             <img
               class="profile-pic"
-              :src="
-                user.profilePictureUrl ||
-                'https://t4.ftcdn.net/jpg/02/15/84/43/360_F_215844325_ttX9YiIIyeaR7Ne6EaLLjMAmy4GvPC69.jpg'
-              "
+              :src="avatarFor(user.userId, user.profilePictureUrl)"
               alt="Profile picture"
             />
             <div class="details">

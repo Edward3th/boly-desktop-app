@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useRanking, useUser } from '@/stores'
+import { avatarFor } from '@/utils/avatars'
 import type { RankingMetric, RankingPeriod, RankingResponse, RankingScope } from '@/types'
 import SkeletonList from '@/components/skeletons/SkeletonList.vue'
 import { formatPlayTime } from '@/utils/playTime'
@@ -225,7 +226,7 @@ onMounted(load)
           <span class="rank">{{ entry.rank }}</span>
           <img
             v-if="entry.profile_picture_url"
-            :src="entry.profile_picture_url"
+            :src="avatarFor(null, entry.profile_picture_url)"
             alt=""
             class="avatar"
           />

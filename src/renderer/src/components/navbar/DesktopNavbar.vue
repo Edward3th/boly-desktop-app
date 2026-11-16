@@ -3,6 +3,7 @@ import TheLogo from '../logo/TheLogo.vue'
 import TheMainLogo from '../logo/TheMainLogo.vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuth, useUser } from '@/stores'
+import { avatarFor } from '@/utils/avatars'
 
 const props = defineProps({
   color: {
@@ -106,10 +107,7 @@ function isActive(path: string) {
         <!-- User Profile -->
         <RouterLink v-if="auth.isLoggedIn" to="/account" class="user-profile-link">
           <img
-            :src="
-              user.profilePictureUrl ||
-              'https://t4.ftcdn.net/jpg/02/15/84/43/360_F_215844325_ttX9YiIIyeaR7Ne6EaLLjMAmy4GvPC69.jpg'
-            "
+            :src="avatarFor(user.userId, user.profilePictureUrl)"
             class="icon user_icon"
             alt="Profile picture"
           />

@@ -1,5 +1,6 @@
 <script setup>
 import { useAuth, useUser } from '@/stores'
+import { avatarFor } from '@/utils/avatars'
 import { useRouter } from 'vue-router'
 import { onMounted, watch } from 'vue'
 import EditIcon from '@/components/icons/EditIcon.vue'
@@ -44,10 +45,7 @@ function EditProfile() {
   <div class="main-container">
     <img
       class="profile-pic"
-      :src="
-        user.profilePictureUrl ||
-        'https://t4.ftcdn.net/jpg/02/15/84/43/360_F_215844325_ttX9YiIIyeaR7Ne6EaLLjMAmy4GvPC69.jpg'
-      "
+      :src="avatarFor(user.userId, user.profilePictureUrl)"
       alt="Profile picture"
     />
     <div class="details">
