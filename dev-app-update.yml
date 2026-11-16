@@ -1,4 +1,3 @@
-provider: github
-owner: Edward3th
-repo: boly-desktop-app
+provider: generic
+url: https://mem-testbuk-24092024.s3.us-east-2.amazonaws.com/updates
 updaterCacheDirName: boly-updater

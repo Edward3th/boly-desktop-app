@@ -1,6 +1,13 @@
 import { autoUpdater } from 'electron-updater'
 import { WindowManager } from './WindowManager'
 
+// Where installed apps look for new versions: the release workflow uploads
+// latest.yml, the installer and its blockmap to this public S3 folder. Not
+// GitHub Releases: the repo is private, so apps can't read its releases.
+// BOLY_UPDATE_FEED_URL points it elsewhere, to test an update locally.
+export const UPDATE_FEED_URL =
+  process.env.BOLY_UPDATE_FEED_URL || 'https://mem-testbuk-24092024.s3.us-east-2.amazonaws.com/updates'
+
 export type UpdateState = {
   status: 'idle' | 'checking' | 'up-to-date' | 'available' | 'downloading' | 'ready' | 'error'
   // The version on offer. On 'error' it is set only if the download failed, so
@@ -38,10 +45,8 @@ export class UpdaterService {
       'User-Agent': 'Boly-Desktop-App'
     }
     autoUpdater.setFeedURL({
-      provider: 'github',
-      repo: 'boly-desktop-app',
-      owner: 'Edward3th',
-      private: false
+      provider: 'generic',
+      url: UPDATE_FEED_URL
     })
   }
 

@@ -70,3 +70,16 @@ jobs:
           AWS_DEFAULT_REGION: ${{ secrets.AWS_REGION }}
         run: |
           aws s3 cp "dist_new\boly-${{ needs.check-version.outputs.version }}-setup.exe" "s3://${{ secrets.AWS_S3_BUCKET }}/boly-Setup.exe" --cache-control no-cache
+          # Update feed for installed apps (UPDATE_FEED_URL in UpdaterService.ts).
+          # latest.yml goes last, so apps never see a version whose files aren't there yet.
+          aws s3 cp "dist_new\boly-${{ needs.check-version.outputs.version }}-setup.exe" "s3://${{ secrets.AWS_S3_BUCKET }}/updates/boly-${{ needs.check-version.outputs.version }}-setup.exe"
+          aws s3 cp "dist_new\boly-${{ needs.check-version.outputs.version }}-setup.exe.blockmap" "s3://${{ secrets.AWS_S3_BUCKET }}/updates/boly-${{ needs.check-version.outputs.version }}-setup.exe.blockmap"
+          aws s3 cp "dist_new\latest.yml" "s3://${{ secrets.AWS_S3_BUCKET }}/updates/latest.yml" --cache-control no-cache
+
+      - name: Check the update feed
+        shell: bash
+        run: |
+          feed="https://${{ secrets.AWS_S3_BUCKET }}.s3.${{ secrets.AWS_REGION }}.amazonaws.com/updates"
+          curl -fsS "$feed/latest.yml" | grep -q "version: ${{ needs.check-version.outputs.version }}"
+          curl -fsSI "$feed/boly-${{ needs.check-version.outputs.version }}-setup.exe" > /dev/null
+          echo "Update feed serves ${{ needs.check-version.outputs.version }}"

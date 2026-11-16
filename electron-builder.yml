@@ -4,7 +4,9 @@ directories:
   output: dist_new
   buildResources: build
 
-# Auto update configuration
+# Releases are also attached to GitHub, but installed apps update from S3
+# (UPDATE_FEED_URL in src/main/services/UpdaterService.ts): the repo is
+# private. .github/workflows/release.yml uploads the update files there.
 publish:
   provider: github
   owner: Edward3th
