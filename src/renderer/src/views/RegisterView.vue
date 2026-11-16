@@ -43,7 +43,7 @@ function openTerms(): void {
     return
   }
 
-  const emailRegex = /^[^\s@]+@[^\s@]+\.com$/
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
   if (!emailRegex.test(email.value)) {
     showModal.value = true
     modalWarning.value = i18n.t('modal_invalid_email')
