@@ -69,6 +69,9 @@ if (process.contextIsolated) {
       onGameStopped: (callback) => {
         ipcRenderer.on('game-stopped', (_event, ...args) => callback(...args))
       },
+      onGameLaunchProblem: (callback) => {
+        ipcRenderer.on('game-launch-problem', (_event, ...args) => callback(...args))
+      },
       removeAllListeners: (channel) => {
         if (
           [
@@ -80,7 +83,8 @@ if (process.contextIsolated) {
             'install-error',
             'install-complete',
             'game-started',
-            'game-stopped'
+            'game-stopped',
+            'game-launch-problem'
           ].includes(channel)
         ) {
           ipcRenderer.removeAllListeners(channel)
@@ -154,6 +158,9 @@ if (process.contextIsolated) {
     onGameStopped: (callback) => {
       ipcRenderer.on('game-stopped', (_event, ...args) => callback(...args))
     },
+    onGameLaunchProblem: (callback) => {
+      ipcRenderer.on('game-launch-problem', (_event, ...args) => callback(...args))
+    },
     removeAllListeners: (channel) => {
       if (
         [
@@ -165,7 +172,8 @@ if (process.contextIsolated) {
           'install-error',
           'install-complete',
           'game-started',
-          'game-stopped'
+          'game-stopped',
+          'game-launch-problem'
         ].includes(channel)
       ) {
         ipcRenderer.removeAllListeners(channel)

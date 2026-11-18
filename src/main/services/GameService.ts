@@ -1,4 +1,5 @@
 import { spawn, execFile } from 'child_process'
+import fs from 'fs'
 import { BrowserWindow } from 'electron'
 import { is } from '@electron-toolkit/utils'
 import axios from 'axios'
@@ -6,6 +7,7 @@ import { WindowManager } from './WindowManager'
 import { AchievementNotifier } from './AchievementNotifier'
 import { AuthService } from './AuthService'
 import { LocalGameServer } from './LocalGameServer'
+import { reportLaunchProblem, codeForValidationFailure, OutputTail } from './LaunchProblemReporter'
 
 interface ActiveGameSession {
   pid: number
@@ -243,7 +245,23 @@ export default class GameService {
         console.error(`[GameService]   HTTP status : ${status}`)
         console.error(`[GameService]   Server says : ${JSON.stringify(data)}`)
         this.gameSessionLaunching = false
-        return { error: `Access denied: ${data?.message ?? axiosError.message}` }
+        const httpStatus: number | null = axiosError.response?.status ?? null
+        const message = data?.message ?? axiosError.message
+        reportLaunchProblem(
+          {
+            gameId: game_id,
+            stage: 'validate',
+            code: codeForValidationFailure(httpStatus),
+            message:
+              httpStatus === null
+                ? `No response from ${apiBaseUrl}: ${axiosError.message}`
+                : String(message),
+            httpStatus,
+            details: axiosError.code ? { network_code: axiosError.code } : undefined
+          },
+          token
+        )
+        return { error: `Access denied: ${message}`, reported: true }
       }
 
       if (validationResponse.data && validationResponse.data.tempKey) {
@@ -273,6 +291,22 @@ export default class GameService {
         // A dev build of the app talks to a local API: point the game at it
         // too. The SDK accepts -api_base; the released app never sends it.
         if (is.dev) args.push('-api_base', apiBaseUrl)
+
+        if (!appPath || !fs.existsSync(appPath)) {
+          this.gameSessionLaunching = false
+          reportLaunchProblem(
+            {
+              gameId: game_id,
+              stage: 'game_missing',
+              code: 'game_missing',
+              message: `Game executable not found: ${appPath}`
+            },
+            token
+          )
+          return { error: 'Game executable not found.', reported: true }
+        }
+
+        const output = new OutputTail()
         const appProcess = spawn('"' + appPath + '"', args, {
           shell: true,
           detached: false
@@ -281,16 +315,27 @@ export default class GameService {
         if (!appProcess.pid) {
           console.error('[GameService] ✗ Failed to launch application or get PID.')
           this.gameSessionLaunching = false
-          return { error: 'Failed to launch game process.' }
+          reportLaunchProblem(
+            {
+              gameId: game_id,
+              stage: 'spawn',
+              code: 'blocked',
+              message: `The game process did not start: ${appPath}`
+            },
+            token
+          )
+          return { error: 'Failed to launch game process.', reported: true }
         }
 
         console.log(`[GameService] ✓ Game process started — PID: ${appProcess.pid}`)
 
         appProcess.stdout?.on('data', (data: Buffer) => {
           console.log(`[Game stdout] ${data.toString().trim()}`)
+          output.push('stdout', data)
         })
         appProcess.stderr?.on('data', (data: Buffer) => {
           console.error(`[Game stderr] ${data.toString().trim()}`)
+          output.push('stderr', data)
         })
 
         this.activeGameSession = {
@@ -353,12 +398,34 @@ export default class GameService {
           if (sessionSecs < 15) {
             console.warn(`[GameService] ⚠ Game exited within 15 seconds — this usually means the game rejected its license key.`)
             console.warn(`[GameService]   Check the backend logs for validateToken errors for game_id=${game_id}`)
+            reportLaunchProblem(
+              {
+                gameId: game_id,
+                stage: 'early_exit',
+                code: 'quit_on_start',
+                message: `Game exited after ${sessionSecs.toFixed(1)}s with exit code ${code}`,
+                exitCode: code,
+                runSeconds: Math.round(sessionSecs),
+                details: { output: output.text(), app_path: appPath }
+              },
+              token
+            )
           }
           this.cleanupActiveGameSession()
         })
 
         appProcess.on('error', async (err) => {
           console.error(`[GameService] ✗ Game process error (PID: ${appProcess.pid}): ${err.message}`)
+          reportLaunchProblem(
+            {
+              gameId: game_id,
+              stage: 'process_error',
+              code: 'blocked',
+              message: err.message,
+              details: { app_path: appPath, output: output.text() }
+            },
+            token
+          )
           this.cleanupActiveGameSession()
         })
 
@@ -367,13 +434,27 @@ export default class GameService {
         console.error(`[GameService] ✗ Validation response did not contain a tempKey`)
         console.error(`[GameService]   Response data: ${JSON.stringify(validationResponse.data)}`)
         this.gameSessionLaunching = false
-        return { error: 'Game validation failed.' }
+        reportLaunchProblem(
+          {
+            gameId: game_id,
+            stage: 'no_key',
+            code: 'server',
+            message: `Validation answered without a key: ${JSON.stringify(validationResponse.data).slice(0, 300)}`,
+            httpStatus: validationResponse.status ?? null
+          },
+          token
+        )
+        return { error: 'Game validation failed.', reported: true }
       }
     } catch (error: any) {
       console.error(`[GameService] ✗ Unexpected error in playGame:`, error.message)
       this.gameSessionLaunching = false
       await this.cleanupActiveGameSession()
-      return { error: 'Failed to play game: ' + error.message }
+      reportLaunchProblem(
+        { gameId: game_id, stage: 'unexpected', code: 'unknown', message: String(error?.message ?? error) },
+        token
+      )
+      return { error: 'Failed to play game: ' + error.message, reported: true }
     }
   }
 
@@ -421,7 +502,7 @@ export default class GameService {
     entryPath: string
     token: string
     gameName?: string
-  }): Promise<{ success?: boolean; error?: string }> {
+  }): Promise<{ success?: boolean; error?: string; reported?: boolean }> {
     const { game_id, root, entryPath, token, gameName } = appData
 
     if (this.hasActiveSession()) {
@@ -440,7 +521,17 @@ export default class GameService {
       if (!registration.ok) {
         console.error(`[GameService] ✗ Could not register local game: ${registration.error}`)
         this.gameSessionLaunching = false
-        return { error: registration.error }
+        reportLaunchProblem(
+          {
+            gameId: game_id,
+            stage: 'local_register',
+            code: 'game_missing',
+            message: String(registration.error),
+            details: { root, entry: entryPath }
+          },
+          token
+        )
+        return { error: registration.error, reported: true }
       }
 
       const lastRecordedPlayTimeMinutes = await this.fetchInitialPlayTime(token, game_id)
@@ -507,7 +598,17 @@ export default class GameService {
       console.error(`[GameService] ✗ Unexpected error in playLocalGame:`, error.message)
       this.gameSessionLaunching = false
       this.activeLocalGameSession = null
-      return { error: 'Failed to play game: ' + error.message }
+      reportLaunchProblem(
+        {
+          gameId: game_id,
+          stage: 'local_load',
+          code: 'unknown',
+          message: String(error?.message ?? error),
+          details: { root, entry: entryPath }
+        },
+        token
+      )
+      return { error: 'Failed to play game: ' + error.message, reported: true }
     }
   }
 }

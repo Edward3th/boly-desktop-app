@@ -12,6 +12,7 @@ import useDownloadStore from '@/desktop-stores/download'
 import ModalComponent from '@/components/ModalComponent.vue'
 import WindowControls from '@/desktop-components/WindowControls.vue'
 import AppUpdateNotice from '@/desktop-components/AppUpdateNotice.vue'
+import LaunchProblemModal from '@/desktop-components/LaunchProblemModal.vue'
 import useAppUpdateStore from '@/desktop-stores/appUpdate'
 
 const auth = useAuth()
@@ -44,6 +45,7 @@ const goToReportProblem = () => {
   <!-- Custom frameless-window title bar (drag region + min/max/close), always visible -->
   <WindowControls />
   <AppUpdateNotice />
+  <LaunchProblemModal />
   <template v-if="auth.verifying && $route.path !== '/login' && $route.path !== '/register'">
     <TheNavbar :color="'pink'" style="z-index: 100 !important" />
     <SkeletonPage class="view-container" />

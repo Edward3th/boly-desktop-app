@@ -196,7 +196,8 @@ async function playResumeGame() {
     })
     if (result && result.error) {
       console.error('Failed to start game:', result.error)
-      emit('notify', i18n.t('home_quick_launch_error'))
+      // A reported problem already shows LaunchProblemModal with the reason.
+      if (!result.reported) emit('notify', i18n.t('home_quick_launch_error'))
     }
   } catch (error) {
     console.error('Error starting game:', error)

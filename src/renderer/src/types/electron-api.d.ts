@@ -16,7 +16,7 @@ interface ElectronAPIExtended {
     game_id: number
     appPath: string
     token: string
-  }) => Promise<{ success?: boolean; pid?: number; error?: string }>
+  }) => Promise<{ success?: boolean; pid?: number; error?: string; reported?: boolean }>
   uninstallGame: (appData: {
     game_id: number
     uninstallerPath: string
@@ -33,7 +33,7 @@ interface ElectronAPIExtended {
     entryPath: string
     token: string
     gameName?: string
-  }) => Promise<{ success?: boolean; error?: string }>
+  }) => Promise<{ success?: boolean; error?: string; reported?: boolean }>
   /** Closes the open game (native or browser-style) and records its final playtime. */
   endGameSession: () => Promise<void>
   isGameRunning: (gameId: number) => Promise<boolean>
@@ -99,6 +99,17 @@ interface ElectronAPIExtended {
   ) => void
   onGameStarted: (callback: (data: { gameId: number; pid: number }) => void) => void
   onGameStopped: (callback: (data: { gameId: number }) => void) => void
+  /** A game didn't open (see main/services/LaunchProblemReporter.ts). */
+  onGameLaunchProblem: (
+    callback: (data: {
+      gameId: number
+      code: string
+      stage: string
+      message: string
+      httpStatus: number | null
+      exitCode: number | null
+    }) => void
+  ) => void
 
   // Cleanup listeners
   removeAllListeners: (channel: string) => void

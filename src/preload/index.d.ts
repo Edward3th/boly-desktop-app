@@ -58,6 +58,7 @@ interface ElectronAPIExtended {
   onInstallComplete: (callback: (data: any) => void) => void
   onGameStarted: (callback: (data: any) => void) => void
   onGameStopped: (callback: (data: any) => void) => void
+  onGameLaunchProblem: (callback: (data: any) => void) => void
   removeAllListeners: (channel: string) => void
 }
 
