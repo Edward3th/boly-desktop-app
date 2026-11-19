@@ -7,6 +7,7 @@ import router from './router'
 import i18n from './i18n'
 import { useAuth } from '@/stores'
 import useDownloadStore from '@/desktop-stores/download'
+import useSharedDevice from '@/desktop-stores/sharedDevice'
 import axios from 'axios'
 
 // Set app start time for grace period calculations
@@ -63,6 +64,14 @@ if (window.electron && window.electron.ipcRenderer) {
 
     // Force logout in the auth store
     await auth.logout()
+
+    // On a shared computer the API ends a session left idle; the next
+    // student just picks a profile. Elsewhere, explain what happened.
+    const shared = useSharedDevice()
+    if (shared.isShared) {
+      router.push(shared.hasProfiles ? { path: '/profiles', query: { reason: 'expired' } } : '/login')
+      return
+    }
 
     // Redirect to session invalidated page
     router.push('/session-invalidated')

@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory, createMemoryHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import { useAuth } from '@/stores'
+import useSharedDevice from '@/desktop-stores/sharedDevice'
 
 // Use createMemoryHistory for Electron production build to avoid issues with file:// protocol
 // and createWebHistory for development
@@ -44,6 +45,15 @@ export const router = createRouter({
       path: '/login',
       name: 'login',
       component: () => import('../views/LoginView.vue')
+    },
+    {
+      // Shared computers: pick your profile and type only your password.
+      path: '/profiles',
+      name: 'profiles',
+      component: () => import('../views/ProfilesView.vue'),
+      meta: {
+        requiresAuth: false
+      }
     },
     {
       path: '/register',
@@ -300,8 +310,13 @@ router.beforeEach(async (to, from, next) => {
   }
 
   const auth = useAuth()
+  const shared = useSharedDevice()
+  // Where a signed-out user goes: the profiles screen on a shared computer
+  // that already has profiles, the sign-in form otherwise.
+  const signInPath = () => (shared.hasProfiles ? '/profiles' : '/login')
 
   try {
+    await shared.init(() => auth.logout())
     await auth.checkToken()
 
     if (auth.isLoggedIn && STORE_ONLY_PATHS.has(to.path)) {
@@ -309,30 +324,40 @@ router.beforeEach(async (to, from, next) => {
       return
     }
 
-    // If user is not logged in and accessing home route, redirect to login
-    if (to.path === '/' && !auth.isLoggedIn) {
+    if (auth.isLoggedIn && to.path === '/profiles') {
+      next('/')
+      return
+    }
+
+    if (!auth.isLoggedIn && to.path === '/profiles' && !shared.hasProfiles) {
       next('/login')
       return
     }
 
+    // If user is not logged in and accessing home route, redirect to sign in
+    if (to.path === '/' && !auth.isLoggedIn) {
+      next(signInPath())
+      return
+    }
+
     if (to.meta.requiresAuth && !auth.isLoggedIn) {
-      next('/login')
+      next(signInPath())
     } else if (to.path === '/account' && !auth.isLoggedIn) {
-      next('/login')
+      next(signInPath())
     } else {
       next()
     }
   } catch (error) {
     console.error('Auth error in router guard:', error)
 
-    // If auth check fails and user is accessing home route, redirect to login
+    // If auth check fails and user is accessing home route, redirect to sign in
     if (to.path === '/') {
-      next('/login')
+      next(signInPath())
       return
     }
 
     if (to.meta.requiresAuth || to.path === '/account') {
-      next('/login')
+      next(signInPath())
     } else {
       next()
     }

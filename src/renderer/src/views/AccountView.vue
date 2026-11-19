@@ -15,6 +15,7 @@ import axios from 'axios'
 import AlertModal from '@/components/AlertModal.vue'
 import VerifiedPersonIcon from '@/components/icons/VerifiedPersonIcon.vue'
 import { useI18n } from 'vue-i18n'
+import SharedDeviceSettings from '@/desktop-components/SharedDeviceSettings.vue'
 
 const i18n = useI18n()
 const router = useRouter()
@@ -197,6 +198,10 @@ const sendVerification = async () => {
           </RouterLink>
         </div>
       </div>
+
+      <div class="mobile-section">
+        <SharedDeviceSettings title-class="mobile-section-title" />
+      </div>
     </div>
   </div>
   <div v-else>
@@ -315,6 +320,10 @@ const sendVerification = async () => {
                   </div>
                 </RouterLink>
               </div>
+            </div>
+
+            <div class="account-section">
+              <SharedDeviceSettings title-class="section-title" />
             </div>
           </div>
         </div>

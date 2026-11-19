@@ -7,6 +7,7 @@ import { InstallerService } from './services/InstallerService'
 import GameService from './services/GameService'
 import { UpdaterService } from './services/UpdaterService'
 import { LocalGameServer } from './services/LocalGameServer'
+import { SharedDeviceService } from './services/SharedDeviceService'
 import axios from 'axios'
 import fs from 'fs'
 import path from 'path'
@@ -224,6 +225,8 @@ app.whenReady().then(() => {
 
   // Register Handlers
   registerIpcHandlers()
+  // Shared-computer mode: profiles and inactivity sign-out (needs app ready).
+  SharedDeviceService.getInstance().init()
 
   // Create Window
   windowManager.createWindow()

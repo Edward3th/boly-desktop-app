@@ -4,6 +4,12 @@ import { jwtDecode } from 'jwt-decode'
 import { useUser } from '.'
 import type { Router } from 'vue-router'
 import type { User } from '@/types'
+import useSharedDevice from '@/desktop-stores/sharedDevice'
+
+// Why a profile sign-in failed, for the profiles screen.
+export type ProfileLoginResult =
+  | { ok: true }
+  | { ok: false; reason: 'invalid' | 'locked' | 'error'; retryAfterSeconds?: number }
 
 const useAuth = defineStore('auth', {
   state: () => ({
@@ -15,35 +21,53 @@ const useAuth = defineStore('auth', {
     lastTokenCheck: 0
   }),
   actions: {
+    // Stores a fresh sign-in. On a shared computer it also saves (or moves to
+    // the front) this account's profile card.
+    async signedIn(token: string, sessionId: string, rememberMe: boolean) {
+      localStorage.setItem('token', token)
+      localStorage.setItem('sessionId', sessionId)
+
+      // Store remember me preference
+      if (rememberMe) {
+        localStorage.setItem('rememberMe', 'true')
+      } else {
+        localStorage.removeItem('rememberMe')
+      }
+
+      const user = useUser()
+      const decodedData = jwtDecode<User & { id: number; profile_picture_url?: string | null }>(token)
+      user.setUser(decodedData)
+
+      this.token = token
+      this.sessionId = sessionId
+      this.isLoggedIn = true
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
+
+      const shared = useSharedDevice()
+      if (shared.isShared && decodedData.id) {
+        await shared.upsertProfile({
+          user_id: decodedData.id,
+          username: decodedData.username,
+          avatar_url: decodedData.profile_picture_url ?? null
+        })
+      }
+    },
+
     async login(email: string, password: string, router: Router, rememberMe: boolean = false) {
+      // A shared computer never remembers a sign-in.
+      const shared = useSharedDevice().isShared
+      if (shared) rememberMe = false
       try {
         const response = await axios.post('/v1/auth', {
           email: email,
           password: password,
           is_desktop_app: true,
+          shared_device: shared,
           device_info: 'Boly Desktop App',
           remember_me: rememberMe
         })
         if (response.status == 200) {
-          localStorage.setItem('token', response.data.token)
-          localStorage.setItem('sessionId', response.data.session_id)
-
-          // Store remember me preference
-          if (rememberMe) {
-            localStorage.setItem('rememberMe', 'true')
-          } else {
-            localStorage.removeItem('rememberMe')
-          }
-
-          const user = useUser()
-
-          const decodedData = jwtDecode<User>(response.data.token)
-          user.setUser(decodedData)
-
-          this.token = response.data.token
-          this.sessionId = response.data.session_id
-          this.isLoggedIn = true
-
+          await this.signedIn(response.data.token, response.data.session_id, rememberMe)
           router.push('/')
         } else {
           this.error = response.data.message
@@ -53,6 +77,32 @@ const useAuth = defineStore('auth', {
         console.log(error)
         this.error = error.response?.data?.message || error.message
         console.error(this.error)
+      }
+    },
+
+    // A profile on a shared computer: password only, by user id.
+    async profileLogin(userId: number, password: string, router: Router): Promise<ProfileLoginResult> {
+      try {
+        const response = await axios.post('/v1/auth/profile-login', {
+          user_id: userId,
+          password,
+          device_info: 'Boly Desktop App (shared)'
+        })
+        await this.signedIn(response.data.token, response.data.session_id, false)
+        router.push('/')
+        return { ok: true }
+      } catch (error: any) {
+        const status = error.response?.status
+        if (status === 429) {
+          return {
+            ok: false,
+            reason: 'locked',
+            retryAfterSeconds: error.response?.data?.retry_after_seconds
+          }
+        }
+        if (status === 401 || status === 404) return { ok: false, reason: 'invalid' }
+        console.error('Profile sign-in failed:', status ?? error.message)
+        return { ok: false, reason: 'error' }
       }
     },
 
@@ -270,6 +320,7 @@ const useAuth = defineStore('auth', {
         this.isLoggedIn = false
         this.error = undefined
         user.clearUser()
+        useSharedDevice().notifySignedIn(false)
       }
     }
   }

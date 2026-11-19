@@ -13,6 +13,8 @@ import ModalComponent from '@/components/ModalComponent.vue'
 import WindowControls from '@/desktop-components/WindowControls.vue'
 import AppUpdateNotice from '@/desktop-components/AppUpdateNotice.vue'
 import LaunchProblemModal from '@/desktop-components/LaunchProblemModal.vue'
+import IdleSignOutModal from '@/desktop-components/IdleSignOutModal.vue'
+import useSharedDevice from '@/desktop-stores/sharedDevice'
 import useAppUpdateStore from '@/desktop-stores/appUpdate'
 
 const auth = useAuth()
@@ -22,6 +24,20 @@ const route = useRoute()
 
 auth.checkToken()
 useAppUpdateStore().init()
+
+// Shared computers: the inactivity monitor runs only while someone is signed in.
+const shared = useSharedDevice()
+watch(
+  () => auth.isLoggedIn,
+  (signedIn) => shared.notifySignedIn(signedIn),
+  { immediate: true }
+)
+
+// Hand the computer to the next student right away.
+const switchProfile = async () => {
+  await auth.logout()
+  router.push(shared.hasProfiles ? '/profiles' : '/login')
+}
 
 // Match the scrollbar tint to the navbar color: orange on home, pink elsewhere
 watch(
@@ -46,6 +62,7 @@ const goToReportProblem = () => {
   <WindowControls />
   <AppUpdateNotice />
   <LaunchProblemModal />
+  <IdleSignOutModal />
   <template v-if="auth.verifying && $route.path !== '/login' && $route.path !== '/register'">
     <TheNavbar :color="'pink'" style="z-index: 100 !important" />
     <SkeletonPage class="view-container" />
@@ -55,6 +72,7 @@ const goToReportProblem = () => {
     <template
       v-if="
         $route.path == '/login' ||
+        $route.path == '/profiles' ||
         $route.path == '/register' ||
         $route.path == '/forgot-password' ||
         $route.path == '/confirm-password-reset' ||
@@ -79,6 +97,14 @@ const goToReportProblem = () => {
       <TheFooter v-else :small="false" :color="'blue'" />
     </template>
     <div class="bottom-buttons">
+      <button
+        v-if="shared.isShared && auth.isLoggedIn"
+        class="switch-profile-button"
+        :title="$t('profiles_switch')"
+        @click="switchProfile"
+      >
+        {{ $t('profiles_switch') }}
+      </button>
       <button
         class="report-button"
         :title="$t('report_problem_title') || 'Report a Problem'"
@@ -109,6 +135,22 @@ const goToReportProblem = () => {
   display: flex;
   gap: 10px;
   align-items: center;
+}
+
+.switch-profile-button {
+  height: 50px;
+  padding: 0 1.2rem;
+  border: none;
+  border-radius: 25px;
+  background-color: var(--boly-button-purple, #6b4fd8);
+  color: white;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.switch-profile-button:hover {
+  filter: brightness(1.1);
 }
 
 .lang-button {

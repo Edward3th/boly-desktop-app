@@ -7,6 +7,7 @@ import EyeSlashIcon from '@/components/icons/EyeSlashIcon.vue'
 
 import { useAuth } from '@/stores'
 import { useI18n } from 'vue-i18n'
+import useSharedDevice from '@/desktop-stores/sharedDevice'
 
 const i18n = useI18n()
 
@@ -20,6 +21,19 @@ const email = ref<string>('')
 const password = ref<string>('')
 const showPassword = ref<boolean>(false)
 const rememberMe = ref<boolean>(localStorage.getItem('rememberMe') === 'true')
+
+// Shared computers: never "remember me", a way back to the profiles, and on
+// the very first launch, the question that turns the mode on.
+const shared = useSharedDevice()
+const askShared = ref<boolean>(false)
+shared.load().then(() => {
+  askShared.value = shared.enabled === null
+})
+
+async function answerShared(isShared: boolean): Promise<void> {
+  await shared.setMode(isShared)
+  askShared.value = false
+}
 
 function togglePasswordVisibility(): void {
   showPassword.value = !showPassword.value
@@ -80,8 +94,8 @@ async function submit(): Promise<void> {
             </button>
           </div>
 
-          <!-- Remember me checkbox -->
-          <div class="form_group remember-me-group">
+          <!-- Remember me checkbox (never on a shared computer) -->
+          <div v-if="!shared.isShared" class="form_group remember-me-group">
             <label class="remember-me-label">
               <input v-model="rememberMe" type="checkbox" class="remember-me-checkbox" />
               <span class="checkmark"></span>
@@ -90,6 +104,14 @@ async function submit(): Promise<void> {
           </div>
 
           <button class="login_button_text">{{ $t('login').toUpperCase() }}</button>
+          <button
+            v-if="shared.hasProfiles"
+            type="button"
+            class="back-to-profiles"
+            @click="router.push('/profiles')"
+          >
+            {{ $t('profiles_back_to_list') }}
+          </button>
 
           <Teleport to="body">
             <AlertModal :show="showModal" @close="modalCallback">
@@ -98,6 +120,22 @@ async function submit(): Promise<void> {
               </template>
               <template #body> {{ modalWarning }} </template>
             </AlertModal>
+          </Teleport>
+          <Teleport to="body">
+            <div v-if="askShared" class="shared-question-backdrop">
+              <div class="shared-question">
+                <h3>{{ $t('shared_question_title') }}</h3>
+                <p>{{ $t('shared_question_text') }}</p>
+                <div class="shared-question-actions">
+                  <button type="button" class="shared-yes" @click="answerShared(true)">
+                    {{ $t('shared_question_yes') }}
+                  </button>
+                  <button type="button" class="shared-no" @click="answerShared(false)">
+                    {{ $t('shared_question_no') }}
+                  </button>
+                </div>
+              </div>
+            </div>
           </Teleport>
         </form>
         <div class="register">
@@ -126,6 +164,64 @@ async function submit(): Promise<void> {
 </template>
 
 <style scoped>
+.back-to-profiles {
+  background: transparent !important;
+  border: 1px solid rgba(255, 255, 255, 0.6) !important;
+  color: white;
+}
+
+.shared-question-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.shared-question {
+  background: #2b2350;
+  color: white;
+  border-radius: 20px;
+  padding: 1.5rem 2rem;
+  width: min(460px, 90vw);
+  font-family: 'Poppins', sans-serif;
+  text-align: center;
+}
+
+.shared-question h3 {
+  font-family: 'Anton', Impact, sans-serif;
+  letter-spacing: 0.05rem;
+  margin: 0 0 0.5rem;
+}
+
+.shared-question-actions {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.shared-question-actions button {
+  height: 40px;
+  padding: 0 1.2rem;
+  border-radius: 20px;
+  border: none;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.shared-yes {
+  background: var(--lightGreen, #8ee5a1);
+  color: var(--bgGreen, #1d4d2b);
+}
+
+.shared-no {
+  background: rgba(255, 255, 255, 0.15);
+  color: white;
+}
+
 a {
   color: var(--lightGreen);
 }
