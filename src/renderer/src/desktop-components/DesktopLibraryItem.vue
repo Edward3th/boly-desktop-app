@@ -14,6 +14,7 @@ import router from '@/router'
 import { PLACEHOLDER_IMAGE, resolveImageUrl } from '@/utils/imageUrl'
 import GameEducationMeta from '@/components/education/GameEducationMeta.vue'
 import { recordPlayed } from '@/utils/recentlyPlayed'
+import { isPhoneOnly } from '@/utils/platform'
 
 const props = defineProps<{
   loading?: boolean
@@ -103,9 +104,16 @@ const needsUpdate = computed(() =>
 // One place deciding what the main button is, instead of the same nested
 // ternary repeated across class, label and icon — adding the update state to
 // three parallel chains is how they drift apart.
-type ActionState = 'running' | 'downloading' | 'installing' | 'update' | 'play' | 'download'
+type ActionState = 'phone' | 'running' | 'downloading' | 'installing' | 'update' | 'play' | 'download'
+
+// Nothing to install here: it's played on a phone, from boly.cl. A copy still
+// installed from when it had a Windows build, or one under review, can be played.
+const phoneOnly = computed(
+  () => isPhoneOnly(props.item) && !props.item.isInstalled && !props.item.pending_review
+)
 
 const actionState = computed<ActionState>(() => {
+  if (phoneOnly.value) return 'phone'
   if (isRunning.value) return 'running'
   if (isDownloading.value) return 'downloading'
   if (isInstalling.value) return 'installing'
@@ -117,6 +125,7 @@ const actionState = computed<ActionState>(() => {
 const actionClass = computed(
   () =>
     ({
+      phone: 'phone-button',
       running: 'running-button',
       downloading: 'downloading-button',
       installing: 'installing-button',
@@ -129,6 +138,7 @@ const actionClass = computed(
 const actionLabel = computed(
   () =>
     ({
+      phone: i18n.t('phone_only'),
       running: i18n.t('running'),
       downloading: i18n.t('downloading'),
       installing: i18n.t('installing'),
@@ -352,6 +362,7 @@ onMounted(() => {
 })
 
 async function Play() {
+  if (phoneOnly.value) return
   // The row itself is clickable too: an outdated build is never launched.
   if (needsUpdate.value) {
     Download()
@@ -462,7 +473,13 @@ async function Download() {
     </div>
     <div class="sk sk-action-btn"></div>
   </div>
-  <div v-else class="lib-row" :style="{ '--i': props.index ?? 0 }" @click="Play">
+  <div
+    v-else
+    class="lib-row"
+    :class="{ 'phone-only': phoneOnly }"
+    :style="{ '--i': props.index ?? 0 }"
+    @click="Play"
+  >
     <div class="capsule">
       <img
         :src="bannerSrc && !imageFailed ? bannerSrc : PLACEHOLDER_IMAGE"
@@ -518,7 +535,8 @@ async function Download() {
     <div class="row-actions">
       <button
         :class="['action-button', actionClass]"
-        :disabled="isLoading || isDownloading || isInstalling || isRunning"
+        :disabled="phoneOnly || isLoading || isDownloading || isInstalling || isRunning"
+        :title="phoneOnly ? $t('phone_only_hint') : undefined"
         @click.stop="onActionClick"
       >
         <span class="button-text">{{ actionLabel }}</span>
@@ -527,7 +545,7 @@ async function Download() {
           v-else-if="actionState === 'downloading' || actionState === 'installing'"
           class="icon"
         />
-        <DownloadIcon v-else class="icon" />
+        <DownloadIcon v-else-if="actionState !== 'phone'" class="icon" />
       </button>
 
       <!-- Options Button -->
@@ -792,6 +810,15 @@ async function Download() {
 
 .play-button:hover:not(:disabled) {
   background: var(--boly-button-purple-hover);
+}
+
+.lib-row.phone-only {
+  cursor: default;
+}
+
+.phone-button {
+  background: rgba(251, 251, 251, 0.14);
+  cursor: default;
 }
 
 .download-button {

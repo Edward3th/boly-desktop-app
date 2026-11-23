@@ -192,6 +192,8 @@ export const en = {
   already_owned: 'Already owned!',
   subscription_access: 'Subscription Access',
   pending_review_badge: 'Pending review',
+  phone_only: 'Phone only',
+  phone_only_hint: 'This game is only for phones. Open it at boly.cl on yours.',
   add_to_cart: 'Add to cart',
   already_in_cart: 'Already in cart!',
   remove_from_cart: 'Remove from cart?',

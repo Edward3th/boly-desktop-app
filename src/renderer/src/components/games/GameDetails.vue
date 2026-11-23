@@ -10,6 +10,7 @@ import { useAuth, useUser, useGames, useDeveloper, useCurriculum } from '@/store
 import { useI18n } from 'vue-i18n'
 import type { Game, GameEducation, LocalizedString } from '@/types'
 import { resolveImageUrl } from '@/utils/imageUrl'
+import { isPhoneOnly } from '@/utils/platform'
 import { describeTargets } from '@/utils/curriculum'
 
 // Declare vue-star-rating in types/globals.d.ts instead
@@ -205,7 +206,8 @@ function getGameName() {
               <tr>
                 <td>{{ $t('game_platforms') }}</td>
                 <td class="icon-row">
-                  <WindowsIcon v-if="props.item.game_type_id === 3 || props.item.game_type_id === 2" class="icon" />
+                  <span v-if="isPhoneOnly(props.item)">{{ $t('phone_only') }}</span>
+                  <WindowsIcon v-else-if="props.item.game_type_id === 3 || props.item.game_type_id === 2" class="icon" />
                   <AppleIcon v-if="props.item.game_type_id === 2" class="icon" />
                   <!-- <LinuxIcon class="icon" /> -->
                 </td>

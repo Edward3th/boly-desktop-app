@@ -193,6 +193,8 @@ export const es = {
   already_owned: '¡Ya lo tienes!',
   subscription_access: 'Acceso por Suscripción',
   pending_review_badge: 'Pendiente de revisión',
+  phone_only: 'Solo para celular',
+  phone_only_hint: 'Este juego es solo para celular. Ábrelo en boly.cl desde tu teléfono.',
   add_to_cart: 'Añadir al carrito',
   already_in_cart: '¡Ya en el carrito!',
   remove_from_cart: '¿Quitar del carrito?',

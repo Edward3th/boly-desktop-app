@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { Game, LocalizedString } from '@/types'
 import { PLACEHOLDER_IMAGE, resolveImageUrl } from '@/utils/imageUrl'
+import { isPhoneOnly } from '@/utils/platform'
 import GameEducationMeta from '@/components/education/GameEducationMeta.vue'
 
 // One game in the store search list (Steam-style): key art on the left; name,
@@ -25,6 +26,7 @@ const description = computed(
 )
 
 const typeLabel = computed(() => {
+  if (isPhoneOnly(props.game)) return t('phone_only')
   if (props.game.game_type_id === GAME_TYPE_WEB) return t('store_type_web')
   if (props.game.game_type_id === GAME_TYPE_DOWNLOADABLE) return t('store_type_download')
   return ''

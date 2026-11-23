@@ -51,6 +51,8 @@ export interface Game {
    * which is what surfaces the Update button.
    */
   installedBuildKey?: string
+  /** The game's phone build, if it has one. */
+  mobile_build_id?: number | null
   file_name?: {
     desktop?: string
     web?: string

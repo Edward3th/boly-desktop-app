@@ -55,6 +55,8 @@ async function UpdateData(gameId: string): Promise<void> {
       game_type: gameData.game_type,
       game_Path: gameData.game_Path,
       free_to_play: gameData.free_to_play,
+      file_name: gameData.file_name ?? undefined,
+      mobile_build_id: gameData.mobile_build_id,
       education: gameData.education ?? null
     }
   } catch (err: unknown) {
